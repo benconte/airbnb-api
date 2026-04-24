@@ -10,9 +10,8 @@ datasource db {
   provider = "postgresql"
 }
 
-// ─── Enums ────────────────────────────────────────────────────────────────────
-
 enum Role {
+  ADMIN
   HOST
   GUEST
 }
@@ -31,15 +30,19 @@ enum BookingStatus {
 }
 
 model User {
-  id        Int      @id @default(autoincrement())
-  name      String
-  email     String   @unique
-  username  String   @unique
-  phone     String
-  role      Role     @default(GUEST)
-  avatar    String?
-  bio       String?
-  createdAt DateTime @default(now())
+  id               Int       @id @default(autoincrement())
+  name             String
+  email            String    @unique
+  username         String    @unique
+  phone            String
+  password         String
+  role             Role      @default(GUEST)
+  avatar           String?
+  bio              String?
+  createdAt        DateTime  @default(now())
+  updatedAt        DateTime  @updatedAt
+  resetToken       String?
+  resetTokenExpiry DateTime?
 
   listings Listing[]
   bookings Booking[]

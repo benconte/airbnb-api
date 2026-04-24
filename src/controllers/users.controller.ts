@@ -1,6 +1,7 @@
 import { Request, Response } from "express";
 import { Prisma } from "../../generated/prisma/client";
 import prisma from "../config/prisma";
+import bcrypt from "bcrypt";
 
 export const getAllUsers = async (_req: Request, res: Response): Promise<void> => {
   try {
@@ -41,22 +42,25 @@ export const getUserById = async (req: Request, res: Response): Promise<void> =>
 
 export const createUser = async (req: Request, res: Response): Promise<void> => {
   try {
-    const { name, email, username, phone, role, avatar, bio } = req.body as {
+    const { name, email, username, phone, password, role, avatar, bio } = req.body as {
       name?: string;
       email?: string;
       username?: string;
       phone?: string;
+      password?: string;
       role?: "HOST" | "GUEST";
       avatar?: string;
       bio?: string;
     };
 
-    if (!name || !email || !username || !phone) {
+    if (!name || !email || !username || !phone || !password) {
       res.status(400).json({
-        message: "Missing required fields: name, email, username, phone.",
+        message: "Missing required fields: name, email, username, phone, password.",
       });
       return;
     }
+
+    const hashedPassword = await bcrypt.hash(password, 10);
 
     const newUser = await prisma.user.create({
       data: {
@@ -64,13 +68,16 @@ export const createUser = async (req: Request, res: Response): Promise<void> => 
         email,
         username,
         phone,
+        password: hashedPassword,
         ...(role && { role }),
         ...(avatar !== undefined && { avatar }),
         ...(bio !== undefined && { bio }),
       },
     });
 
-    res.status(201).json(newUser);
+    const { password: _, ...userWithoutPassword } = newUser;
+
+    res.status(201).json(userWithoutPassword);
   } catch (err) {
     handleError(err, res, "createUser");
   }

@@ -3,6 +3,7 @@ import express, { Request, Response } from "express";
 import usersRouter from "./routes/users.routes";
 import listingsRouter from "./routes/listings.routes";
 import bookingsRouter from "./routes/bookings.routes";
+import authRouter from "./routes/auth.routes";
 import { connectDB } from "./config/prisma";
 
 const app = express();
@@ -12,6 +13,7 @@ const PORT = process.env["PORT"] ?? 3333;
 app.use(express.json());
 
 // Routes
+app.use("/auth", authRouter);
 app.use("/users", usersRouter);
 app.use("/listings", listingsRouter);
 app.use("/bookings", bookingsRouter);

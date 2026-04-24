@@ -1,9 +1,8 @@
 import { Request, Response } from "express";
+import { AuthRequest } from "../middlewares/auth.middleware";
 import { Prisma, ListingType } from "../../generated/prisma/client";
 import prisma from "../config/prisma";
 
-// ─── GET /listings ────────────────────────────────────────────────────────────
-// Supports: ?location=, ?type=, ?maxPrice=, ?page=, ?limit=, ?sortBy=, ?order=
 export const getAllListings = async (req: Request, res: Response): Promise<void> => {
   try {
     const { location, type, maxPrice, sortBy, order } = req.query as Record<string, string>;
@@ -13,7 +12,6 @@ export const getAllListings = async (req: Request, res: Response): Promise<void>
     const limit = Math.max(1, parseInt((req.query.limit as string) ?? "10", 10) || 10);
     const skip = (page - 1) * limit;
 
-    // Build where clause
     const where: Prisma.ListingWhereInput = {};
 
     if (location) {
@@ -29,7 +27,6 @@ export const getAllListings = async (req: Request, res: Response): Promise<void>
       if (!isNaN(parsed)) where.pricePerNight = { lte: parsed };
     }
 
-    // Sorting — allow sortBy=pricePerNight or sortBy=createdAt etc.
     const allowedSortFields = ["pricePerNight", "createdAt", "rating", "title"] as const;
     type SortField = (typeof allowedSortFields)[number];
 
@@ -68,7 +65,6 @@ export const getAllListings = async (req: Request, res: Response): Promise<void>
   }
 };
 
-// ─── GET /listings/:id ────────────────────────────────────────────────────────
 export const getListingById = async (req: Request, res: Response): Promise<void> => {
   try {
     const id = Number(req.params.id);
@@ -91,10 +87,9 @@ export const getListingById = async (req: Request, res: Response): Promise<void>
   }
 };
 
-// ─── POST /listings ───────────────────────────────────────────────────────────
-export const createListing = async (req: Request, res: Response): Promise<void> => {
+export const createListing = async (req: AuthRequest, res: Response): Promise<void> => {
   try {
-    const { title, description, location, pricePerNight, guests, type, amenities, hostId, rating } =
+    const { title, description, location, pricePerNight, guests, type, amenities, rating } =
       req.body as {
         title?: string;
         description?: string;
@@ -103,19 +98,23 @@ export const createListing = async (req: Request, res: Response): Promise<void> 
         guests?: number;
         type?: ListingType;
         amenities?: string[];
-        hostId?: number;
         rating?: number;
       };
 
-    if (!title || !description || !location || !pricePerNight || !guests || !type || !amenities || !hostId) {
+    if (!title || !description || !location || !pricePerNight || !guests || !type || !amenities) {
       res.status(400).json({
         message:
-          "Missing required fields: title, description, location, pricePerNight, guests, type, amenities, hostId.",
+          "Missing required fields: title, description, location, pricePerNight, guests, type, amenities.",
       });
       return;
     }
 
-    // Verify host exists
+    const hostId = req.userId;
+    if (!hostId) {
+      res.status(401).json({ message: "Not authenticated" });
+      return;
+    }
+
     const host = await prisma.user.findFirst({ where: { id: hostId } });
     if (!host) {
       res.status(404).json({ message: `Host user with id ${hostId} not found.` });
@@ -142,14 +141,18 @@ export const createListing = async (req: Request, res: Response): Promise<void> 
   }
 };
 
-// ─── PUT /listings/:id ────────────────────────────────────────────────────────
-export const updateListing = async (req: Request, res: Response): Promise<void> => {
+export const updateListing = async (req: AuthRequest, res: Response): Promise<void> => {
   try {
     const id = Number(req.params.id);
 
     const existing = await prisma.listing.findFirst({ where: { id } });
     if (!existing) {
       res.status(404).json({ message: `Listing with id ${id} not found.` });
+      return;
+    }
+
+    if (existing.hostId !== req.userId && req.role !== "ADMIN") {
+      res.status(403).json({ message: "You can only edit your own listings" });
       return;
     }
 
@@ -164,14 +167,18 @@ export const updateListing = async (req: Request, res: Response): Promise<void> 
   }
 };
 
-// ─── DELETE /listings/:id ─────────────────────────────────────────────────────
-export const deleteListing = async (req: Request, res: Response): Promise<void> => {
+export const deleteListing = async (req: AuthRequest, res: Response): Promise<void> => {
   try {
     const id = Number(req.params.id);
 
     const existing = await prisma.listing.findFirst({ where: { id } });
     if (!existing) {
       res.status(404).json({ message: `Listing with id ${id} not found.` });
+      return;
+    }
+
+    if (existing.hostId !== req.userId && req.role !== "ADMIN") {
+      res.status(403).json({ message: "You can only delete your own listings" });
       return;
     }
 
@@ -182,7 +189,6 @@ export const deleteListing = async (req: Request, res: Response): Promise<void> 
   }
 };
 
-// ─── Error Handler ────────────────────────────────────────────────────────────
 function handleError(err: unknown, res: Response, operation: string): void {
   if (err instanceof Prisma.PrismaClientKnownRequestError) {
     console.error(`[${operation}] Prisma error ${err.code}: ${err.message}`);

@@ -1,8 +1,8 @@
 import { Request, Response } from "express";
+import { AuthRequest } from "../middlewares/auth.middleware";
 import { Prisma, BookingStatus } from "../../generated/prisma/client";
 import prisma from "../config/prisma";
 
-// ─── GET /bookings ────────────────────────────────────────────────────────────
 export const getAllBookings = async (_req: Request, res: Response): Promise<void> => {
   try {
     const bookings = await prisma.booking.findMany({
@@ -17,7 +17,6 @@ export const getAllBookings = async (_req: Request, res: Response): Promise<void
   }
 };
 
-// ─── GET /bookings/:id ────────────────────────────────────────────────────────
 export const getBookingById = async (req: Request, res: Response): Promise<void> => {
   try {
     const id = Number(req.params.id);
@@ -40,38 +39,33 @@ export const getBookingById = async (req: Request, res: Response): Promise<void>
   }
 };
 
-// ─── POST /bookings ───────────────────────────────────────────────────────────
-export const createBooking = async (req: Request, res: Response): Promise<void> => {
+export const createBooking = async (req: AuthRequest, res: Response): Promise<void> => {
   try {
-    const { guestId, listingId, checkIn, checkOut } = req.body as {
-      guestId?: number;
+    const { listingId, checkIn, checkOut } = req.body as {
       listingId?: number;
       checkIn?: string;
       checkOut?: string;
     };
 
-    if (!guestId || !listingId || !checkIn || !checkOut) {
+    if (!listingId || !checkIn || !checkOut) {
       res.status(400).json({
-        message: "Missing required fields: guestId, listingId, checkIn, checkOut.",
+        message: "Missing required fields: listingId, checkIn, checkOut.",
       });
       return;
     }
 
-    // Verify guest exists
-    const guest = await prisma.user.findFirst({ where: { id: guestId } });
-    if (!guest) {
-      res.status(404).json({ message: `Guest user with id ${guestId} not found.` });
+    const guestId = req.userId;
+    if (!guestId) {
+      res.status(401).json({ message: "Not authenticated" });
       return;
     }
 
-    // Verify listing exists
     const listing = await prisma.listing.findFirst({ where: { id: listingId } });
     if (!listing) {
       res.status(404).json({ message: `Listing with id ${listingId} not found.` });
       return;
     }
 
-    // Calculate totalPrice server-side — never trust the client
     const checkInDate = new Date(checkIn);
     const checkOutDate = new Date(checkOut);
 
@@ -82,6 +76,27 @@ export const createBooking = async (req: Request, res: Response): Promise<void> 
 
     if (checkOutDate <= checkInDate) {
       res.status(400).json({ message: "checkOut must be after checkIn." });
+      return;
+    }
+
+    if (checkInDate < new Date()) {
+      res.status(400).json({ message: "checkIn cannot be in the past." });
+      return;
+    }
+
+    const conflictingBooking = await prisma.booking.findFirst({
+      where: {
+        listingId,
+        status: "CONFIRMED",
+        AND: [
+          { checkIn: { lt: checkOutDate } },
+          { checkOut: { gt: checkInDate } },
+        ],
+      },
+    });
+
+    if (conflictingBooking) {
+      res.status(409).json({ message: "The listing is already booked for the selected dates." });
       return;
     }
 
@@ -111,8 +126,7 @@ export const createBooking = async (req: Request, res: Response): Promise<void> 
   }
 };
 
-// ─── DELETE /bookings/:id ─────────────────────────────────────────────────────
-export const deleteBooking = async (req: Request, res: Response): Promise<void> => {
+export const deleteBooking = async (req: AuthRequest, res: Response): Promise<void> => {
   try {
     const id = Number(req.params.id);
 
@@ -122,14 +136,26 @@ export const deleteBooking = async (req: Request, res: Response): Promise<void> 
       return;
     }
 
-    const deleted = await prisma.booking.delete({ where: { id } });
+    if (existing.guestId !== req.userId && req.role !== "ADMIN") {
+      res.status(403).json({ message: "You can only cancel your own bookings" });
+      return;
+    }
+
+    if (existing.status === "CANCELLED") {
+      res.status(400).json({ message: "Booking is already cancelled" });
+      return;
+    }
+
+    const deleted = await prisma.booking.update({
+      where: { id },
+      data: { status: "CANCELLED" },
+    });
     res.json({ message: "Booking cancelled successfully.", booking: deleted });
   } catch (err) {
     handleError(err, res, "deleteBooking");
   }
 };
 
-// ─── PATCH /bookings/:id/status ───────────────────────────────────────────────
 export const updateBookingStatus = async (req: Request, res: Response): Promise<void> => {
   try {
     const id = Number(req.params.id);
@@ -159,7 +185,6 @@ export const updateBookingStatus = async (req: Request, res: Response): Promise<
   }
 };
 
-// ─── Error Handler ────────────────────────────────────────────────────────────
 function handleError(err: unknown, res: Response, operation: string): void {
   if (err instanceof Prisma.PrismaClientKnownRequestError) {
     console.error(`[${operation}] Prisma error ${err.code}: ${err.message}`);

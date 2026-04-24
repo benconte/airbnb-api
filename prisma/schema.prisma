@@ -1,0 +1,82 @@
+// This is your Prisma schema file,
+// learn more about it in the docs: https://pris.ly/d/prisma-schema
+
+generator client {
+  provider = "prisma-client-js"
+  output   = "../generated/prisma/client"
+}
+
+datasource db {
+  provider = "postgresql"
+}
+
+// ─── Enums ────────────────────────────────────────────────────────────────────
+
+enum Role {
+  HOST
+  GUEST
+}
+
+enum ListingType {
+  APARTMENT
+  HOUSE
+  VILLA
+  CABIN
+}
+
+enum BookingStatus {
+  PENDING
+  CONFIRMED
+  CANCELLED
+}
+
+model User {
+  id        Int      @id @default(autoincrement())
+  name      String
+  email     String   @unique
+  username  String   @unique
+  phone     String
+  role      Role     @default(GUEST)
+  avatar    String?
+  bio       String?
+  createdAt DateTime @default(now())
+
+  listings Listing[]
+  bookings Booking[]
+}
+
+model Listing {
+  id            Int         @id @default(autoincrement())
+  title         String
+  description   String
+  location      String
+  pricePerNight Float
+  guests        Int
+  type          ListingType
+  amenities     String[]
+  rating        Float?
+  createdAt     DateTime    @default(now())
+  updatedAt     DateTime    @updatedAt
+
+  host     User      @relation(fields: [hostId], references: [id], onDelete: Cascade)
+  hostId   Int
+  bookings Booking[]
+
+  // Indexes for frequently filtered fields
+  @@index([location])
+  @@index([pricePerNight])
+}
+
+model Booking {
+  id         Int           @id @default(autoincrement())
+  checkIn    DateTime
+  checkOut   DateTime
+  totalPrice Float
+  status     BookingStatus @default(PENDING)
+  createdAt  DateTime      @default(now())
+
+  guest     User    @relation(fields: [guestId], references: [id], onDelete: Cascade)
+  guestId   Int
+  listing   Listing @relation(fields: [listingId], references: [id], onDelete: Cascade)
+  listingId Int
+}

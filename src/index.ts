@@ -4,6 +4,7 @@ import usersRouter from "./routes/users.routes";
 import listingsRouter from "./routes/listings.routes";
 import bookingsRouter from "./routes/bookings.routes";
 import authRouter from "./routes/auth.routes";
+import { userUploadRouter, listingUploadRouter } from "./routes/upload.routes";
 import { connectDB } from "./config/prisma";
 
 const app = express();
@@ -15,7 +16,9 @@ app.use(express.json());
 // Routes
 app.use("/auth", authRouter);
 app.use("/users", usersRouter);
+app.use("/users", userUploadRouter);       // POST /users/:id/avatar, DELETE /users/:id/avatar
 app.use("/listings", listingsRouter);
+app.use("/listings", listingUploadRouter); // POST /listings/:id/photos, DELETE /listings/:id/photos/:photoId
 app.use("/bookings", bookingsRouter);
 
 // 404 catch-all for unknown routes

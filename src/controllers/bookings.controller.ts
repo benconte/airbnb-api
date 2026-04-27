@@ -2,6 +2,8 @@ import { Request, Response } from "express";
 import { AuthRequest } from "../middlewares/auth.middleware";
 import { Prisma, BookingStatus } from "../../generated/prisma/client";
 import prisma from "../config/prisma";
+import { sendEmail } from "../config/email";
+import { bookingConfirmationEmail, bookingCancellationEmail } from "../templates/emails";
 
 export const getAllBookings = async (_req: Request, res: Response): Promise<void> => {
   try {
@@ -115,12 +117,33 @@ export const createBooking = async (req: AuthRequest, res: Response): Promise<vo
         status: "PENDING",
       },
       include: {
-        guest: { select: { name: true } },
-        listing: { select: { title: true } },
+        guest: { select: { name: true, email: true } },
+        listing: { select: { title: true, location: true } },
       },
     });
 
+    // Send response first, then fire email
     res.status(201).json(newBooking);
+
+    try {
+      const guest = await prisma.user.findUnique({ where: { id: guestId } });
+      if (guest) {
+        await sendEmail(
+          guest.email,
+          "Your Airbnb Booking is Confirmed!",
+          bookingConfirmationEmail(
+            guest.name,
+            listing.title,
+            listing.location,
+            checkInDate.toDateString(),
+            checkOutDate.toDateString(),
+            totalPrice
+          )
+        );
+      }
+    } catch (emailErr) {
+      console.error("[Email] Failed to send booking confirmation email:", emailErr);
+    }
   } catch (err) {
     handleError(err, res, "createBooking");
   }
@@ -130,7 +153,14 @@ export const deleteBooking = async (req: AuthRequest, res: Response): Promise<vo
   try {
     const id = Number(req.params.id);
 
-    const existing = await prisma.booking.findFirst({ where: { id } });
+    const existing = await prisma.booking.findFirst({
+      where: { id },
+      include: {
+        guest: { select: { id: true, name: true, email: true } },
+        listing: { select: { title: true } },
+      },
+    });
+
     if (!existing) {
       res.status(404).json({ message: `Booking with id ${id} not found.` });
       return;
@@ -150,7 +180,24 @@ export const deleteBooking = async (req: AuthRequest, res: Response): Promise<vo
       where: { id },
       data: { status: "CANCELLED" },
     });
+
+    // Send response first, then fire email
     res.json({ message: "Booking cancelled successfully.", booking: deleted });
+
+    try {
+      await sendEmail(
+        existing.guest.email,
+        "Your Airbnb Booking has been Cancelled",
+        bookingCancellationEmail(
+          existing.guest.name,
+          existing.listing.title,
+          existing.checkIn.toDateString(),
+          existing.checkOut.toDateString()
+        )
+      );
+    } catch (emailErr) {
+      console.error("[Email] Failed to send booking cancellation email:", emailErr);
+    }
   } catch (err) {
     handleError(err, res, "deleteBooking");
   }

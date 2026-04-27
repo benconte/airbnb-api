@@ -4,6 +4,8 @@ import bcrypt from "bcrypt";
 import jwt from "jsonwebtoken";
 import crypto from "crypto";
 import { AuthRequest } from "../middlewares/auth.middleware";
+import { sendEmail } from "../config/email";
+import { welcomeEmail, passwordResetEmail } from "../templates/emails";
 
 export const register = async (req: Request, res: Response): Promise<void> => {
   try {
@@ -48,10 +50,21 @@ export const register = async (req: Request, res: Response): Promise<void> => {
       },
     });
 
+    // Send response first, then fire email — a failed email must never block the response
     const { password: _, ...userWithoutPassword } = user;
-
     res.status(201).json(userWithoutPassword);
+
+    try {
+      await sendEmail(
+        user.email,
+        "Welcome to Airbnb!",
+        welcomeEmail(user.name, user.role)
+      );
+    } catch (emailErr) {
+      console.error("[Email] Failed to send welcome email:", emailErr);
+    }
   } catch (error) {
+    console.error("Registration error:", error);
     res.status(500).json({ message: "Something went wrong" });
   }
 };
@@ -181,9 +194,20 @@ export const forgotPassword = async (req: Request, res: Response): Promise<void>
         },
       });
 
-      console.log(`Reset email sent to ${email} with link: http://localhost:3000/auth/reset-password/${rawToken}`);
+      const resetLink = `${process.env["API_URL"] || "http://localhost:3333"}/auth/reset-password/${rawToken}`;
+
+      try {
+        await sendEmail(
+          user.email,
+          "Reset your Airbnb password",
+          passwordResetEmail(user.name, resetLink)
+        );
+      } catch (emailErr) {
+        console.error("[Email] Failed to send password reset email:", emailErr);
+      }
     }
 
+    // Always return 200 — never reveal whether the email exists
     res.status(200).json({ message: "If that email is registered, a reset link has been sent" });
   } catch (error) {
     res.status(500).json({ message: "Something went wrong" });

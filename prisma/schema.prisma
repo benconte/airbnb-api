@@ -37,7 +37,8 @@ model User {
   phone            String
   password         String
   role             Role      @default(GUEST)
-  avatar           String?
+  avatar           String?   // Cloudinary URL
+  avatarPublicId   String?   // needed to delete the old file before uploading a new one
   bio              String?
   createdAt        DateTime  @default(now())
   updatedAt        DateTime  @updatedAt
@@ -49,7 +50,7 @@ model User {
 }
 
 model Listing {
-  id            Int         @id @default(autoincrement())
+  id            Int           @id @default(autoincrement())
   title         String
   description   String
   location      String
@@ -58,16 +59,26 @@ model Listing {
   type          ListingType
   amenities     String[]
   rating        Float?
-  createdAt     DateTime    @default(now())
-  updatedAt     DateTime    @updatedAt
+  createdAt     DateTime      @default(now())
+  updatedAt     DateTime      @updatedAt
 
-  host     User      @relation(fields: [hostId], references: [id], onDelete: Cascade)
+  host     User           @relation(fields: [hostId], references: [id], onDelete: Cascade)
   hostId   Int
   bookings Booking[]
+  photos   ListingPhoto[]
 
   // Indexes for frequently filtered fields
   @@index([location])
   @@index([pricePerNight])
+}
+
+model ListingPhoto {
+  id        Int     @id @default(autoincrement())
+  url       String  // Cloudinary URL — for displaying
+  publicId  String  // Cloudinary public_id — for deleting
+
+  listing   Listing @relation(fields: [listingId], references: [id], onDelete: Cascade)
+  listingId Int
 }
 
 model Booking {

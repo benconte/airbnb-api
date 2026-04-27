@@ -6,12 +6,16 @@ import bookingsRouter from "./routes/bookings.routes";
 import authRouter from "./routes/auth.routes";
 import { userUploadRouter, listingUploadRouter } from "./routes/upload.routes";
 import { connectDB } from "./config/prisma";
+import { setupSwagger } from "./config/swagger";
 
 const app = express();
 const PORT = process.env["PORT"] ?? 3333;
 
 // Middleware
 app.use(express.json());
+
+// Swagger docs
+setupSwagger(app);
 
 // Routes
 app.use("/auth", authRouter);

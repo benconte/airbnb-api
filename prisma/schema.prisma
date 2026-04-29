@@ -30,15 +30,15 @@ enum BookingStatus {
 }
 
 model User {
-  id               Int       @id @default(autoincrement())
+  id               String    @id @default(uuid())
   name             String
   email            String    @unique
   username         String    @unique
   phone            String
   password         String
   role             Role      @default(GUEST)
-  avatar           String?   // Cloudinary URL
-  avatarPublicId   String?   // needed to delete the old file before uploading a new one
+  avatar           String? // Cloudinary URL
+  avatarPublicId   String? // needed to delete the old file before uploading a new one
   bio              String?
   createdAt        DateTime  @default(now())
   updatedAt        DateTime  @updatedAt
@@ -50,7 +50,7 @@ model User {
 }
 
 model Listing {
-  id            Int           @id @default(autoincrement())
+  id            String      @id @default(uuid())
   title         String
   description   String
   location      String
@@ -59,11 +59,11 @@ model Listing {
   type          ListingType
   amenities     String[]
   rating        Float?
-  createdAt     DateTime      @default(now())
-  updatedAt     DateTime      @updatedAt
+  createdAt     DateTime    @default(now())
+  updatedAt     DateTime    @updatedAt
 
   host     User           @relation(fields: [hostId], references: [id], onDelete: Cascade)
-  hostId   Int
+  hostId   String
   bookings Booking[]
   photos   ListingPhoto[]
 
@@ -73,16 +73,16 @@ model Listing {
 }
 
 model ListingPhoto {
-  id        Int     @id @default(autoincrement())
-  url       String  // Cloudinary URL — for displaying
-  publicId  String  // Cloudinary public_id — for deleting
+  id       String @id @default(uuid())
+  url      String // Cloudinary URL — for displaying
+  publicId String // Cloudinary public_id — for deleting
 
   listing   Listing @relation(fields: [listingId], references: [id], onDelete: Cascade)
-  listingId Int
+  listingId String
 }
 
 model Booking {
-  id         Int           @id @default(autoincrement())
+  id         String        @id @default(uuid())
   checkIn    DateTime
   checkOut   DateTime
   totalPrice Float
@@ -90,7 +90,7 @@ model Booking {
   createdAt  DateTime      @default(now())
 
   guest     User    @relation(fields: [guestId], references: [id], onDelete: Cascade)
-  guestId   Int
+  guestId   String
   listing   Listing @relation(fields: [listingId], references: [id], onDelete: Cascade)
-  listingId Int
+  listingId String
 }

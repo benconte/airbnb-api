@@ -18,7 +18,7 @@ const router = Router();
  *       type: object
  *       properties:
  *         id:
- *           type: integer
+ *           type: string
  *           example: 1
  *         title:
  *           type: string
@@ -49,7 +49,7 @@ const router = Router();
  *           nullable: true
  *           example: 4.5
  *         hostId:
- *           type: integer
+ *           type: string
  *           example: 1
  *         host:
  *           $ref: '#/components/schemas/User'
@@ -180,7 +180,7 @@ router.get("/", getAllListings);
  *         name: id
  *         required: true
  *         schema:
- *           type: integer
+ *           type: string
  *         description: Listing ID
  *     responses:
  *       200:
@@ -247,7 +247,7 @@ router.post("/", authenticate, requireHost, createListing);
  *         name: id
  *         required: true
  *         schema:
- *           type: integer
+ *           type: string
  *         description: Listing ID
  *     requestBody:
  *       required: true
@@ -315,7 +315,7 @@ router.put("/:id", authenticate, updateListing);
  *         name: id
  *         required: true
  *         schema:
- *           type: integer
+ *           type: string
  *         description: Listing ID
  *     responses:
  *       200:

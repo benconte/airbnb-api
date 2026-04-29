@@ -19,7 +19,7 @@ const router = Router();
  *       type: object
  *       properties:
  *         id:
- *           type: integer
+ *           type: string
  *           example: 1
  *         name:
  *           type: string
@@ -125,7 +125,7 @@ router.get("/", getAllUsers);
  *         name: id
  *         required: true
  *         schema:
- *           type: integer
+ *           type: string
  *         description: User ID
  *     responses:
  *       200:
@@ -164,7 +164,7 @@ router.post("/", createUser);
  *         name: id
  *         required: true
  *         schema:
- *           type: integer
+ *           type: string
  *         description: User ID
  *     requestBody:
  *       required: true
@@ -213,7 +213,7 @@ router.put("/:id", updateUser);
  *         name: id
  *         required: true
  *         schema:
- *           type: integer
+ *           type: string
  *         description: User ID
  *     responses:
  *       200:
@@ -249,7 +249,7 @@ router.get("/:id/listings", getUserListings);
  *         name: id
  *         required: true
  *         schema:
- *           type: integer
+ *           type: string
  *         description: User ID
  *       - in: query
  *         name: page

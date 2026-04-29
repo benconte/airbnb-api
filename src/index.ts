@@ -1,5 +1,5 @@
 import "dotenv/config";
-import express, { Request, Response } from "express";
+import express, { NextFunction, Request, Response } from "express";
 import usersRouter from "./routes/v1/users.routes";
 import listingsRouter from "./routes/v1/listings.routes";
 import bookingsRouter from "./routes/v1/bookings.routes";
@@ -7,6 +7,8 @@ import authRouter from "./routes/v1/auth.routes";
 import { userUploadRouter, listingUploadRouter } from "./routes/v1/upload.routes";
 import { connectDB } from "./config/prisma";
 import { setupSwagger } from "./config/swagger";
+import morgan from "morgan";
+import v1Router from "./routes/v1/index.js";
 
 const app = express();
 const PORT = process.env["PORT"] ?? 3333;
@@ -17,18 +19,26 @@ app.use(express.json());
 // Swagger docs
 setupSwagger(app);
 
+app.get("/health", (_: Request, res: Response) => {
+  res.json({ status: "ok", uptime: process.uptime(), timestamp: new Date() });
+});
+
+// dev format in development, combined format in production
+app.use(process.env["NODE_ENV"] === "production" ? morgan("combined") : morgan("dev"));
+
 // Routes
-app.use("/v1/auth", authRouter);
-app.use("/v1/users", usersRouter);
-app.use("/v1/users", userUploadRouter);       // POST /users/:id/avatar, DELETE /users/:id/avatar
-app.use("/v1/listings", listingsRouter);
-app.use("/v1/listings", listingUploadRouter); // POST /listings/:id/photos, DELETE /listings/:id/photos/:photoId
-app.use("/v1/bookings", bookingsRouter);
+app.use("/api/v1", v1Router);
 
 // 404 catch-all for unknown routes
 app.use((_req: Request, res: Response) => {
   res.status(404).json({ message: "Route not found." });
 });
+
+app.use((err: Error, _req: Request, res: Response, _next: NextFunction) => {
+  console.error(err.stack);  // log full error server-side
+  res.status(500).json({ error: "Something went wrong" });  // generic message to client
+});
+
 
 // Start server only after DB is connected
 const main = async (): Promise<void> => {

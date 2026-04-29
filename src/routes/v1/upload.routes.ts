@@ -24,7 +24,7 @@ export const userUploadRouter = Router();
  *         name: id
  *         required: true
  *         schema:
- *           type: integer
+ *           type: string
  *         description: User ID
  *     requestBody:
  *       required: true
@@ -74,7 +74,7 @@ userUploadRouter.post("/:id/avatar", authenticate, upload.single("image"), uploa
  *         name: id
  *         required: true
  *         schema:
- *           type: integer
+ *           type: string
  *         description: User ID
  *     responses:
  *       200:
@@ -110,7 +110,7 @@ export const listingUploadRouter = Router();
  *         name: id
  *         required: true
  *         schema:
- *           type: integer
+ *           type: string
  *         description: Listing ID
  *     requestBody:
  *       required: true
@@ -162,13 +162,13 @@ listingUploadRouter.post("/:id/photos", authenticate, upload.array("photos", 5),
  *         name: id
  *         required: true
  *         schema:
- *           type: integer
+ *           type: string
  *         description: Listing ID
  *       - in: path
  *         name: photoId
  *         required: true
  *         schema:
- *           type: integer
+ *           type: string
  *         description: Photo ID
  *     responses:
  *       200:

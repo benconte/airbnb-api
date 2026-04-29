@@ -21,7 +21,7 @@ export const getAllBookings = async (_req: Request, res: Response): Promise<void
 
 export const getBookingById = async (req: Request, res: Response): Promise<void> => {
   try {
-    const id = Number(req.params.id);
+    const id = req.params.id as string;
     const booking = await prisma.booking.findUnique({
       where: { id },
       include: {
@@ -44,7 +44,7 @@ export const getBookingById = async (req: Request, res: Response): Promise<void>
 export const createBooking = async (req: AuthRequest, res: Response): Promise<void> => {
   try {
     const { listingId, checkIn, checkOut } = req.body as {
-      listingId?: number;
+      listingId?: string;
       checkIn?: string;
       checkOut?: string;
     };
@@ -151,7 +151,7 @@ export const createBooking = async (req: AuthRequest, res: Response): Promise<vo
 
 export const deleteBooking = async (req: AuthRequest, res: Response): Promise<void> => {
   try {
-    const id = Number(req.params.id);
+    const id = req.params.id as string;
 
     const existing = await prisma.booking.findFirst({
       where: { id },
@@ -205,7 +205,7 @@ export const deleteBooking = async (req: AuthRequest, res: Response): Promise<vo
 
 export const updateBookingStatus = async (req: Request, res: Response): Promise<void> => {
   try {
-    const id = Number(req.params.id);
+    const id = req.params.id as string;
     const { status } = req.body as { status?: string };
 
     if (!status || !Object.values(BookingStatus).includes(status as BookingStatus)) {

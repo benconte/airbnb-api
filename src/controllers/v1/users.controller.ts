@@ -20,7 +20,7 @@ export const getAllUsers = async (_req: Request, res: Response): Promise<void> =
 
 export const getUserById = async (req: Request, res: Response): Promise<void> => {
   try {
-    const id = Number(req.params.id);
+    const id = req.params.id as string;
     const user = await prisma.user.findUnique({
       where: { id },
       include: {
@@ -85,7 +85,7 @@ export const createUser = async (req: Request, res: Response): Promise<void> => 
 
 export const updateUser = async (req: Request, res: Response): Promise<void> => {
   try {
-    const id = Number(req.params.id);
+    const id = req.params.id as string;
 
     const existing = await prisma.user.findFirst({ where: { id } });
     if (!existing) {
@@ -106,7 +106,7 @@ export const updateUser = async (req: Request, res: Response): Promise<void> => 
 
 export const deleteUser = async (req: Request, res: Response): Promise<void> => {
   try {
-    const id = Number(req.params.id);
+    const id = req.params.id as string;
 
     const existing = await prisma.user.findFirst({ where: { id } });
     if (!existing) {
@@ -123,7 +123,7 @@ export const deleteUser = async (req: Request, res: Response): Promise<void> => 
 
 export const getUserListings = async (req: Request, res: Response): Promise<void> => {
   try {
-    const hostId = Number(req.params.id);
+    const hostId = req.params.id as string;
 
     const host = await prisma.user.findFirst({ where: { id: hostId } });
     if (!host) {
@@ -140,7 +140,7 @@ export const getUserListings = async (req: Request, res: Response): Promise<void
 
 export const getUserBookings = async (req: Request, res: Response): Promise<void> => {
   try {
-    const guestId = Number(req.params.id);
+    const guestId = req.params.id as string;
 
     const guest = await prisma.user.findFirst({ where: { id: guestId } });
     if (!guest) {

@@ -19,7 +19,7 @@ const router = Router();
  *       type: object
  *       properties:
  *         id:
- *           type: integer
+ *           type: string
  *           example: 1
  *         name:
  *           type: string

@@ -18,7 +18,7 @@ const router = Router();
  *       type: object
  *       properties:
  *         id:
- *           type: integer
+ *           type: string
  *           example: 1
  *         checkIn:
  *           type: string
@@ -36,10 +36,10 @@ const router = Router();
  *           enum: [PENDING, CONFIRMED, CANCELLED]
  *           example: CONFIRMED
  *         guestId:
- *           type: integer
+ *           type: string
  *           example: 2
  *         listingId:
- *           type: integer
+ *           type: string
  *           example: 1
  *         guest:
  *           $ref: '#/components/schemas/User'
@@ -57,7 +57,7 @@ const router = Router();
  *         - checkOut
  *       properties:
  *         listingId:
- *           type: integer
+ *           type: string
  *           example: 1
  *         checkIn:
  *           type: string
@@ -121,7 +121,7 @@ router.get("/", getAllBookings);
  *         name: id
  *         required: true
  *         schema:
- *           type: integer
+ *           type: string
  *         description: Booking ID
  *     responses:
  *       200:
@@ -201,7 +201,7 @@ router.post("/", authenticate, requireGuest, createBooking);
  *         name: id
  *         required: true
  *         schema:
- *           type: integer
+ *           type: string
  *         description: Booking ID
  *     requestBody:
  *       required: true
@@ -257,7 +257,7 @@ router.patch("/:id/status", authenticate, updateBookingStatus);
  *         name: id
  *         required: true
  *         schema:
- *           type: integer
+ *           type: string
  *         description: Booking ID
  *     responses:
  *       200:

@@ -5,7 +5,7 @@ import { uploadToCloudinary, deleteFromCloudinary } from "../../config/cloudinar
 
 export const uploadAvatar = async (req: AuthRequest, res: Response): Promise<void> => {
   try {
-    const id = Number(req.params.id);
+    const id = req.params.id as string;
 
     // Users can only change their own avatar
     if (req.userId !== id) {
@@ -46,7 +46,7 @@ export const uploadAvatar = async (req: AuthRequest, res: Response): Promise<voi
 
 export const deleteAvatar = async (req: AuthRequest, res: Response): Promise<void> => {
   try {
-    const id = Number(req.params.id);
+    const id = req.params.id as string;
 
     if (req.userId !== id) {
       res.status(403).json({ message: "You can only remove your own avatar" });
@@ -80,7 +80,7 @@ export const deleteAvatar = async (req: AuthRequest, res: Response): Promise<voi
 
 export const uploadListingPhotos = async (req: AuthRequest, res: Response): Promise<void> => {
   try {
-    const id = Number(req.params.id);
+    const id = req.params.id as string;
 
     const listing = await prisma.listing.findUnique({ where: { id } });
     if (!listing) {
@@ -132,8 +132,8 @@ export const uploadListingPhotos = async (req: AuthRequest, res: Response): Prom
 
 export const deleteListingPhoto = async (req: AuthRequest, res: Response): Promise<void> => {
   try {
-    const id = Number(req.params.id);
-    const photoId = Number(req.params.photoId);
+    const id = req.params.id as string;
+    const photoId = req.params.photoId as string;
 
     const listing = await prisma.listing.findUnique({ where: { id } });
     if (!listing) {

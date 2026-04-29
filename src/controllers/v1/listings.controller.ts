@@ -67,7 +67,7 @@ export const getAllListings = async (req: Request, res: Response): Promise<void>
 
 export const getListingById = async (req: Request, res: Response): Promise<void> => {
   try {
-    const id = Number(req.params.id);
+    const id = req.params.id as string;
     const listing = await prisma.listing.findUnique({
       where: { id },
       include: {
@@ -143,7 +143,7 @@ export const createListing = async (req: AuthRequest, res: Response): Promise<vo
 
 export const updateListing = async (req: AuthRequest, res: Response): Promise<void> => {
   try {
-    const id = Number(req.params.id);
+    const id = req.params.id as string;
 
     const existing = await prisma.listing.findFirst({ where: { id } });
     if (!existing) {
@@ -169,7 +169,7 @@ export const updateListing = async (req: AuthRequest, res: Response): Promise<vo
 
 export const deleteListing = async (req: AuthRequest, res: Response): Promise<void> => {
   try {
-    const id = Number(req.params.id);
+    const id = req.params.id as string;
 
     const existing = await prisma.listing.findFirst({ where: { id } });
     if (!existing) {

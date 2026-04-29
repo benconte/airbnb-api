@@ -1,9 +1,9 @@
 import { Request, Response } from "express";
-import { AuthRequest } from "../middlewares/auth.middleware";
-import { Prisma, BookingStatus } from "../../generated/prisma/client";
-import prisma from "../config/prisma";
-import { sendEmail } from "../config/email";
-import { bookingConfirmationEmail, bookingCancellationEmail } from "../templates/emails";
+import { AuthRequest } from "../../middlewares/auth.middleware";
+import { Prisma, BookingStatus } from "../../../generated/prisma/client";
+import prisma from "../../config/prisma";
+import { sendEmail } from "../../config/email";
+import { bookingConfirmationEmail, bookingCancellationEmail } from "../../templates/emails";
 
 export const getAllBookings = async (_req: Request, res: Response): Promise<void> => {
   try {

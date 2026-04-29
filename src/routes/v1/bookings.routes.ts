@@ -5,8 +5,8 @@ import {
   createBooking,
   deleteBooking,
   updateBookingStatus,
-} from "../controllers/bookings.controller";
-import { authenticate, requireGuest } from "../middlewares/auth.middleware";
+} from "../../controllers/v1/bookings.controller";
+import { authenticate, requireGuest } from "../../middlewares/auth.middleware";
 
 const router = Router();
 

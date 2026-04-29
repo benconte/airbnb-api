@@ -7,7 +7,7 @@ import {
   deleteUser,
   getUserListings,
   getUserBookings,
-} from "../controllers/users.controller";
+} from "../../controllers/v1/users.controller";
 
 const router = Router();
 
@@ -15,6 +15,43 @@ const router = Router();
  * @swagger
  * components:
  *   schemas:
+ *     User:
+ *       type: object
+ *       properties:
+ *         id:
+ *           type: integer
+ *           example: 1
+ *         name:
+ *           type: string
+ *           example: Alice
+ *         email:
+ *           type: string
+ *           example: alice@gmail.com
+ *         username:
+ *           type: string
+ *           example: alice123
+ *         avatar:
+ *           type: string
+ *           nullable: true
+ *           example: https://res.cloudinary.com/demo/image/upload/sample.jpg
+ *         createdAt:
+ *           type: string
+ *           format: date-time
+ *           example: 2024-01-15T10:30:00.000Z
+ *
+ *     CreateUserInput:
+ *       type: object
+ *       required: [name, email, username]
+ *       properties:
+ *         name:
+ *           type: string
+ *           example: Alice
+ *         email:
+ *           type: string
+ *           example: alice@gmail.com
+ *         username:
+ *           type: string
+ *           example: alice123
  *     UpdateUserInput:
  *       type: object
  *       properties:

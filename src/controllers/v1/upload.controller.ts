@@ -1,7 +1,7 @@
 import { Response } from "express";
-import { AuthRequest } from "../middlewares/auth.middleware";
-import prisma from "../config/prisma";
-import { uploadToCloudinary, deleteFromCloudinary } from "../config/cloudinary";
+import { AuthRequest } from "../../middlewares/auth.middleware";
+import prisma from "../../config/prisma";
+import { uploadToCloudinary, deleteFromCloudinary } from "../../config/cloudinary";
 
 export const uploadAvatar = async (req: AuthRequest, res: Response): Promise<void> => {
   try {

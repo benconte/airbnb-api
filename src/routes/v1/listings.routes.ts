@@ -5,8 +5,8 @@ import {
   createListing,
   updateListing,
   deleteListing,
-} from "../controllers/listings.controller";
-import { authenticate, requireHost } from "../middlewares/auth.middleware";
+} from "../../controllers/v1/listings.controller";
+import { authenticate, requireHost } from "../../middlewares/auth.middleware";
 
 const router = Router();
 

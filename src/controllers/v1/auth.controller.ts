@@ -1,11 +1,11 @@
 import { Request, Response } from "express";
-import prisma from "../config/prisma";
+import prisma from "../../config/prisma";
 import bcrypt from "bcrypt";
 import jwt from "jsonwebtoken";
 import crypto from "crypto";
-import { AuthRequest } from "../middlewares/auth.middleware";
-import { sendEmail } from "../config/email";
-import { welcomeEmail, passwordResetEmail } from "../templates/emails";
+import { AuthRequest } from "../../middlewares/auth.middleware";
+import { sendEmail } from "../../config/email";
+import { welcomeEmail, passwordResetEmail } from "../../templates/emails";
 
 export const register = async (req: Request, res: Response): Promise<void> => {
   try {

@@ -1,7 +1,7 @@
 import { Request, Response } from "express";
-import { AuthRequest } from "../middlewares/auth.middleware";
-import { Prisma, ListingType } from "../../generated/prisma/client";
-import prisma from "../config/prisma";
+import { AuthRequest } from "../../middlewares/auth.middleware";
+import { Prisma, ListingType } from "../../../generated/prisma/client";
+import prisma from "../../config/prisma";
 
 export const getAllListings = async (req: Request, res: Response): Promise<void> => {
   try {

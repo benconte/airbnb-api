@@ -1,6 +1,6 @@
 import { Request, Response } from "express";
-import { Prisma } from "../../generated/prisma/client";
-import prisma from "../config/prisma";
+import { Prisma } from "../../../generated/prisma/client";
+import prisma from "../../config/prisma";
 import bcrypt from "bcrypt";
 
 export const getAllUsers = async (_req: Request, res: Response): Promise<void> => {

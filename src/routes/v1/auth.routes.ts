@@ -6,8 +6,8 @@ import {
   changePassword,
   forgotPassword,
   resetPassword,
-} from "../controllers/auth.controller";
-import { authenticate } from "../middlewares/auth.middleware";
+} from "../../controllers/v1/auth.controller";
+import { authenticate } from "../../middlewares/auth.middleware";
 
 const router = Router();
 

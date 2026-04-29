@@ -2,6 +2,8 @@ import swaggerJSDoc from "swagger-jsdoc";
 import swaggerUi from "swagger-ui-express";
 import { Express } from "express";
 
+const API_URL = process.env["API_URL"] ?? "http://localhost:3333";
+
 const options: swaggerJSDoc.Options = {
   definition: {
     openapi: "3.0.0",
@@ -13,7 +15,7 @@ const options: swaggerJSDoc.Options = {
     },
     servers: [
       {
-        url: "http://localhost:3333",
+        url: API_URL,
       },
     ],
     components: {
@@ -26,7 +28,7 @@ const options: swaggerJSDoc.Options = {
       },
     },
   },
-  apis: ["./src/routes/*.ts"],
+  apis: ["./src/routes/**/*.ts"],
 };
 
 const swaggerSpec = swaggerJSDoc(options);
@@ -41,5 +43,5 @@ export function setupSwagger(app: Express): void {
     res.send(swaggerSpec);
   });
 
-  console.log("📄 API docs available at http://localhost:3333/api-docs");
+  console.log(`📄 API docs available at ${API_URL}/api-docs`);
 }

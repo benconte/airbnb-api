@@ -1,10 +1,5 @@
 import "dotenv/config";
 import express, { NextFunction, Request, Response } from "express";
-import usersRouter from "./routes/v1/users.routes";
-import listingsRouter from "./routes/v1/listings.routes";
-import bookingsRouter from "./routes/v1/bookings.routes";
-import authRouter from "./routes/v1/auth.routes";
-import { userUploadRouter, listingUploadRouter } from "./routes/v1/upload.routes";
 import { connectDB } from "./config/prisma";
 import { setupSwagger } from "./config/swagger";
 import morgan from "morgan";

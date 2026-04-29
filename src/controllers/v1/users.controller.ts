@@ -2,17 +2,31 @@ import { Request, Response } from "express";
 import { Prisma } from "../../../generated/prisma/client";
 import prisma from "../../config/prisma";
 import bcrypt from "bcrypt";
+import { clearCachePrefix } from "../../config/cache";
 
-export const getAllUsers = async (_req: Request, res: Response): Promise<void> => {
+export const getAllUsers = async (req: Request, res: Response): Promise<void> => {
   try {
-    const users = await prisma.user.findMany({
-      include: {
-        _count: {
-          select: { listings: true },
+    const page = Math.max(1, parseInt((req.query.page as string) ?? "1", 10) || 1);
+    const limit = Math.max(1, parseInt((req.query.limit as string) ?? "10", 10) || 10);
+    const skip = (page - 1) * limit;
+
+    const [users, total] = await Promise.all([
+      prisma.user.findMany({
+        skip,
+        take: limit,
+        include: {
+          _count: {
+            select: { listings: true },
+          },
         },
-      },
+      }),
+      prisma.user.count(),
+    ]);
+
+    res.json({
+      data: users,
+      meta: { page, limit, total, totalPages: Math.ceil(total / limit) },
     });
-    res.json(users);
   } catch (err) {
     handleError(err, res, "getAllUsers");
   }
@@ -77,6 +91,8 @@ export const createUser = async (req: Request, res: Response): Promise<void> => 
 
     const { password: _, ...userWithoutPassword } = newUser;
 
+    clearCachePrefix("stats_users");
+
     res.status(201).json(userWithoutPassword);
   } catch (err) {
     handleError(err, res, "createUser");
@@ -115,6 +131,9 @@ export const deleteUser = async (req: Request, res: Response): Promise<void> => 
     }
 
     const deleted = await prisma.user.delete({ where: { id } });
+    
+    clearCachePrefix("stats_users");
+    
     res.json({ message: "User deleted successfully.", user: deleted });
   } catch (err) {
     handleError(err, res, "deleteUser");
@@ -131,8 +150,23 @@ export const getUserListings = async (req: Request, res: Response): Promise<void
       return;
     }
 
-    const listings = await prisma.listing.findMany({ where: { hostId } });
-    res.json(listings);
+    const page = Math.max(1, parseInt((req.query.page as string) ?? "1", 10) || 1);
+    const limit = Math.max(1, parseInt((req.query.limit as string) ?? "10", 10) || 10);
+    const skip = (page - 1) * limit;
+
+    const [listings, total] = await Promise.all([
+      prisma.listing.findMany({ 
+        where: { hostId },
+        skip,
+        take: limit
+      }),
+      prisma.listing.count({ where: { hostId } })
+    ]);
+
+    res.json({
+      data: listings,
+      meta: { page, limit, total, totalPages: Math.ceil(total / limit) },
+    });
   } catch (err) {
     handleError(err, res, "getUserListings");
   }
@@ -148,12 +182,24 @@ export const getUserBookings = async (req: Request, res: Response): Promise<void
       return;
     }
 
-    const bookings = await prisma.booking.findMany({
-      where: { guestId },
-      include: { listing: true },
-    });
+    const page = Math.max(1, parseInt((req.query.page as string) ?? "1", 10) || 1);
+    const limit = Math.max(1, parseInt((req.query.limit as string) ?? "10", 10) || 10);
+    const skip = (page - 1) * limit;
 
-    res.json(bookings);
+    const [bookings, total] = await Promise.all([
+      prisma.booking.findMany({
+        where: { guestId },
+        skip,
+        take: limit,
+        include: { listing: { select: { title: true, location: true } } },
+      }),
+      prisma.booking.count({ where: { guestId } })
+    ]);
+
+    res.json({
+      data: bookings,
+      meta: { page, limit, total, totalPages: Math.ceil(total / limit) },
+    });
   } catch (err) {
     handleError(err, res, "getUserBookings");
   }

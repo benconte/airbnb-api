@@ -3,6 +3,8 @@ import express, { NextFunction, Request, Response } from "express";
 import { connectDB } from "./config/prisma";
 import { setupSwagger } from "./config/swagger";
 import morgan from "morgan";
+import compression from "compression";
+import { generalLimiter, strictLimiter } from "./middlewares/rateLimiter";
 import v1Router from "./routes/v1/index.js";
 
 const app = express();
@@ -10,6 +12,17 @@ const PORT = process.env["PORT"] ?? 3333;
 
 // Middleware
 app.use(express.json());
+app.use(compression());
+
+// Apply rate limiters
+app.use(generalLimiter);
+app.use((req: Request, res: Response, next: NextFunction) => {
+  if (req.method === "POST") {
+    strictLimiter(req, res, next);
+  } else {
+    next();
+  }
+});
 
 // Swagger docs
 setupSwagger(app);

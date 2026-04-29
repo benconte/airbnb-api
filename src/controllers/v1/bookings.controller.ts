@@ -5,17 +5,65 @@ import prisma from "../../config/prisma";
 import { sendEmail } from "../../config/email";
 import { bookingConfirmationEmail, bookingCancellationEmail } from "../../templates/emails";
 
-export const getAllBookings = async (_req: Request, res: Response): Promise<void> => {
+export const getAllBookings = async (req: Request, res: Response): Promise<void> => {
   try {
-    const bookings = await prisma.booking.findMany({
-      include: {
-        guest: { select: { name: true } },
-        listing: { select: { title: true } },
-      },
+    const page = Math.max(1, parseInt((req.query.page as string) ?? "1", 10) || 1);
+    const limit = Math.max(1, parseInt((req.query.limit as string) ?? "10", 10) || 10);
+    const skip = (page - 1) * limit;
+
+    const [bookings, total] = await Promise.all([
+      prisma.booking.findMany({
+        skip,
+        take: limit,
+        include: {
+          guest: { select: { name: true } },
+          listing: { select: { title: true, location: true } },
+        },
+      }),
+      prisma.booking.count(),
+    ]);
+
+    res.json({
+      data: bookings,
+      meta: { page, limit, total, totalPages: Math.ceil(total / limit) },
     });
-    res.json(bookings);
   } catch (err) {
     handleError(err, res, "getAllBookings");
+  }
+};
+
+export const getUserBookings = async (req: Request, res: Response): Promise<void> => {
+  try {
+    const userId = req.params.id as string;
+
+    const user = await prisma.user.findUnique({ where: { id: userId } });
+    if (!user) {
+      res.status(404).json({ message: "User not found." });
+      return;
+    }
+
+    const page = Math.max(1, parseInt((req.query.page as string) ?? "1", 10) || 1);
+    const limit = Math.max(1, parseInt((req.query.limit as string) ?? "10", 10) || 10);
+    const skip = (page - 1) * limit;
+
+    const [bookings, total] = await Promise.all([
+      prisma.booking.findMany({
+        where: { guestId: userId },
+        skip,
+        take: limit,
+        include: {
+          listing: { select: { title: true, location: true } },
+        },
+      }),
+      prisma.booking.count({ where: { guestId: userId } }),
+    ]);
+
+    res.json({
+      data: bookings,
+      meta: { page, limit, total, totalPages: Math.ceil(total / limit) },
+    });
+  } catch (err) {
+    handleError(err, res, "getUserBookings");
   }
 };
 

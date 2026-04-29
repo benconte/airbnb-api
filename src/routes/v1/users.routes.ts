@@ -8,6 +8,7 @@ import {
   getUserListings,
   getUserBookings,
 } from "../../controllers/v1/users.controller";
+import { getUsersStats } from "../../controllers/v1/stats.controller";
 
 const router = Router();
 
@@ -234,6 +235,31 @@ router.put("/:id", updateUser);
 router.delete("/:id", deleteUser);
 
 // Sub-resource routes
+
+/**
+ * @swagger
+ * /api/v1/users/stats:
+ *   get:
+ *     summary: Get users statistics
+ *     tags: [Users]
+ *     responses:
+ *       200:
+ *         description: Users statistics including total users and counts by role
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 totalUsers:
+ *                   type: integer
+ *                   example: 50
+ *                 byRole:
+ *                   type: array
+ *                   items:
+ *                     type: object
+ */
+router.get("/stats", getUsersStats);
+
 router.get("/:id/listings", getUserListings);
 
 /**

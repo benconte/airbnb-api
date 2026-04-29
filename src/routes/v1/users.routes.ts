@@ -75,7 +75,7 @@ const router = Router();
 
 /**
  * @swagger
- * /users:
+ * /api/v1/users:
  *   get:
  *     summary: Get all users
  *     tags: [Users]
@@ -114,7 +114,7 @@ router.get("/", getAllUsers);
 
 /**
  * @swagger
- * /users/{id}:
+ * /api/v1/users/{id}:
  *   get:
  *     summary: Get a user by ID
  *     tags: [Users]
@@ -153,7 +153,7 @@ router.post("/", createUser);
 
 /**
  * @swagger
- * /users/{id}:
+ * /api/v1/users/{id}:
  *   put:
  *     summary: Update a user
  *     tags: [Users]
@@ -202,7 +202,7 @@ router.put("/:id", updateUser);
 
 /**
  * @swagger
- * /users/{id}:
+ * /api/v1/users/{id}:
  *   delete:
  *     summary: Delete a user
  *     tags: [Users]
@@ -238,7 +238,7 @@ router.get("/:id/listings", getUserListings);
 
 /**
  * @swagger
- * /users/{id}/bookings:
+ * /api/v1/users/{id}/bookings:
  *   get:
  *     summary: Get all bookings for a user
  *     tags: [Bookings]

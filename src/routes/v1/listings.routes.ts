@@ -96,7 +96,7 @@ const router = Router();
 
 /**
  * @swagger
- * /listings:
+ * /api/v1/listings:
  *   get:
  *     summary: Get all listings
  *     tags: [Listings]
@@ -171,7 +171,7 @@ router.get("/", getAllListings);
 
 /**
  * @swagger
- * /listings/{id}:
+ * /api/v1/listings/{id}:
  *   get:
  *     summary: Get a listing by ID
  *     tags: [Listings]
@@ -200,7 +200,7 @@ router.get("/:id", getListingById);
 
 /**
  * @swagger
- * /listings:
+ * /api/v1/listings:
  *   post:
  *     summary: Create a new listing
  *     tags: [Listings]
@@ -236,7 +236,7 @@ router.post("/", authenticate, requireHost, createListing);
 
 /**
  * @swagger
- * /listings/{id}:
+ * /api/v1/listings/{id}:
  *   put:
  *     summary: Update a listing
  *     tags: [Listings]
@@ -304,7 +304,7 @@ router.put("/:id", authenticate, updateListing);
 
 /**
  * @swagger
- * /listings/{id}:
+ * /api/v1/listings/{id}:
  *   delete:
  *     summary: Delete a listing
  *     tags: [Listings]

@@ -13,7 +13,7 @@ export const userUploadRouter = Router();
 
 /**
  * @swagger
- * /users/{id}/avatar:
+ * /api/v1/users/{id}/avatar:
  *   post:
  *     summary: Upload or replace a user's avatar
  *     tags: [Users]
@@ -63,7 +63,7 @@ userUploadRouter.post("/:id/avatar", authenticate, upload.single("image"), uploa
 
 /**
  * @swagger
- * /users/{id}/avatar:
+ * /api/v1/users/{id}/avatar:
  *   delete:
  *     summary: Delete a user's avatar
  *     tags: [Users]
@@ -99,7 +99,7 @@ export const listingUploadRouter = Router();
 
 /**
  * @swagger
- * /listings/{id}/photos:
+ * /api/v1/listings/{id}/photos:
  *   post:
  *     summary: Upload photos for a listing (up to 5)
  *     tags: [Listings]
@@ -151,7 +151,7 @@ listingUploadRouter.post("/:id/photos", authenticate, upload.array("photos", 5),
 
 /**
  * @swagger
- * /listings/{id}/photos/{photoId}:
+ * /api/v1/listings/{id}/photos/{photoId}:
  *   delete:
  *     summary: Delete a photo from a listing
  *     tags: [Listings]

@@ -108,7 +108,7 @@ const router = Router();
 
 /**
  * @swagger
- * /auth/register:
+ * /api/v1/auth/register:
  *   post:
  *     summary: Register a new user
  *     tags: [Auth]
@@ -142,7 +142,7 @@ router.post("/register", register);
 
 /**
  * @swagger
- * /auth/login:
+ * /api/v1/auth/login:
  *   post:
  *     summary: Log in and receive a JWT token
  *     tags: [Auth]
@@ -176,7 +176,7 @@ router.post("/login", login);
 
 /**
  * @swagger
- * /auth/me:
+ * /api/v1/auth/me:
  *   get:
  *     summary: Get the currently authenticated user
  *     tags: [Auth]
@@ -200,7 +200,7 @@ router.get("/me", authenticate, getMe);
 
 /**
  * @swagger
- * /auth/change-password:
+ * /api/v1/auth/change-password:
  *   post:
  *     summary: Change the authenticated user's password
  *     tags: [Auth]
@@ -242,7 +242,7 @@ router.post("/change-password", authenticate, changePassword);
 
 /**
  * @swagger
- * /auth/forgot-password:
+ * /api/v1/auth/forgot-password:
  *   post:
  *     summary: Request a password reset link
  *     tags: [Auth]
@@ -267,7 +267,7 @@ router.post("/forgot-password", forgotPassword);
 
 /**
  * @swagger
- * /auth/reset-password/{token}:
+ * /api/v1/auth/reset-password/{token}:
  *   post:
  *     summary: Reset password using a reset token
  *     tags: [Auth]

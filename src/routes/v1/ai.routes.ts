@@ -10,7 +10,7 @@ const router = Router();
 
 /**
  * @swagger
- * /ai/search:
+ * /api/v1/ai/search:
  *   post:
  *     summary: Search listings using natural language
  *     tags: [AI]
@@ -33,7 +33,7 @@ router.post("/search", naturalLanguageSearch);
 
 /**
  * @swagger
- * /ai/generate-description:
+ * /api/v1/ai/generate-description:
  *   post:
  *     summary: Generate a listing description using AI
  *     tags: [AI]
@@ -75,7 +75,7 @@ router.post("/generate-description", authenticate, generateListingDescription);
 
 /**
  * @swagger
- * /ai/chat:
+ * /api/v1/ai/chat:
  *   post:
  *     summary: Chat with the Airbnb AI assistant
  *     tags: [AI]

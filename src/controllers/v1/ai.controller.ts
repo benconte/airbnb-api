@@ -9,44 +9,84 @@ import { RunnableWithMessageHistory } from "@langchain/core/runnables";
 import llm from "../../config/ai.js";
 import prisma from "../../config/prisma.js";
 
-// ─── Natural Language Search ──────────────────────────────────────────────────
-
+/**
+ * Prompt that extracts listing-search filters from a user query.
+ * If the query is unrelated to property/listing search, the AI returns
+ * { "irrelevant": true } so we can skip the DB query entirely.
+ */
 const searchPrompt = ChatPromptTemplate.fromTemplate(`
 You are a search assistant for an Airbnb-like platform.
-Extract search filters from the user's natural language query.
+Your job is to extract search filters from the user's natural language query.
 
 User query: {query}
 
-Return a JSON object with these optional fields:
-- location: string (city or area mentioned)
-- type: one of APARTMENT, HOUSE, VILLA, CABIN (if mentioned)
-- guests: number (max guests needed)
-- maxPrice: number (maximum price per night in USD)
+First, decide if the query is about searching for a property, listing, accommodation, or rental.
+- If YES, return a JSON object with these optional fields:
+  - location: string (city or area mentioned)
+  - type: one of APARTMENT, HOUSE, VILLA, CABIN (if mentioned)
+  - guests: number (max guests needed)
+  - maxPrice: number (maximum price per night in USD)
 
-Return ONLY valid JSON. No explanation. No markdown. Example:
-{{"location": "Miami", "type": "VILLA", "guests": 4, "maxPrice": 300}}
+- If NO (e.g. greetings, off-topic questions, random text), return ONLY:
+  {{"irrelevant": true}}
 
-If a field is not mentioned, omit it from the JSON.
+Return ONLY valid JSON. No explanation. No markdown.
+Example for a valid search: {{"location": "Miami", "type": "VILLA", "guests": 4, "maxPrice": 300}}
+Example for irrelevant query: {{"irrelevant": true}}
+
+If a search field is not mentioned, omit it from the JSON.
 `);
 
 const parser = new JsonOutputParser();
 
 const searchChain = searchPrompt.pipe(llm).pipe(parser);
 
-export async function naturalLanguageSearch(req: Request, res: Response) {
+export async function naturalLanguageSearch(
+  req: Request,
+  res: Response
+): Promise<void> {
   const { query } = req.body;
 
   if (!query) {
-    return res.status(400).json({ error: "query is required" });
+    res.status(400).json({ error: "query is required" });
+    return;
   }
 
-  // Extract filters from natural language using AI
+  // Extract filters (or detect irrelevance) via AI
   const filters = (await searchChain.invoke({ query })) as {
+    irrelevant?: boolean;
     location?: string;
     type?: string;
     guests?: number;
     maxPrice?: number;
   };
+
+  // If the query isn't about listings, return a conversational response
+  if (filters.irrelevant) {
+    res.status(200).json({
+      query,
+      message:
+        "I can only help you search for listings. Try something like: 'Find a villa in Paris for 4 guests under $200/night'.",
+      results: [],
+      count: 0,
+    });
+    return;
+  }
+
+  // If no filters were extracted at all, the query is too vague
+  const hasFilters =
+    filters.location || filters.type || filters.guests || filters.maxPrice;
+
+  if (!hasFilters) {
+    res.status(200).json({
+      query,
+      message:
+        "Your query didn't contain enough details to search for listings. Try specifying a location, property type, number of guests, or budget.",
+      results: [],
+      count: 0,
+    });
+    return;
+  }
 
   // Build Prisma where clause from extracted filters
   const where: Record<string, unknown> = {};
@@ -72,7 +112,20 @@ export async function naturalLanguageSearch(req: Request, res: Response) {
     take: 10,
   });
 
-  return res.json({
+  // No matching listings found — do NOT fall back to unrelated results
+  if (listings.length === 0) {
+    res.status(200).json({
+      query,
+      extractedFilters: filters,
+      message:
+        "No listings found matching your search criteria. Try adjusting your filters (location, type, guests, or price).",
+      results: [],
+      count: 0,
+    });
+    return;
+  }
+
+  res.json({
     query,
     extractedFilters: filters,
     results: listings,
@@ -106,13 +159,17 @@ const descriptionChain = descriptionPrompt
   .pipe(llm)
   .pipe(new StringOutputParser());
 
-export async function generateListingDescription(req: Request, res: Response) {
+export async function generateListingDescription(
+  req: Request,
+  res: Response
+): Promise<void> {
   const { title, location, type, guests, amenities, price } = req.body;
 
   if (!title || !location || !type || !guests || !amenities || !price) {
-    return res.status(400).json({
+    res.status(400).json({
       error: "title, location, type, guests, amenities, and price are required",
     });
+    return;
   }
 
   const description = await descriptionChain.invoke({
@@ -124,13 +181,13 @@ export async function generateListingDescription(req: Request, res: Response) {
     price,
   });
 
-  return res.json({ description });
+  res.json({ description });
 }
 
 // ─── Chatbot ──────────────────────────────────────────────────────────────────
 
-// Store conversation histories in memory
-// In production, store these in Redis or a database
+// Store conversation histories in memory.
+// In production, store these in Redis or a database.
 const sessionHistories = new Map<string, InMemoryChatMessageHistory>();
 
 function getSessionHistory(sessionId: string): InMemoryChatMessageHistory {
@@ -140,15 +197,54 @@ function getSessionHistory(sessionId: string): InMemoryChatMessageHistory {
   return sessionHistories.get(sessionId)!;
 }
 
+/**
+ * Lightweight heuristic to decide if a user message is listing-related.
+ * This avoids querying the DB and inflating listing context for greetings
+ * or unrelated questions (e.g. "hi", "how are you", "what's 2+2").
+ */
+function isListingRelated(message: string): boolean {
+  const keywords = [
+    "listing",
+    "listings",
+    "property",
+    "properties",
+    "apartment",
+    "house",
+    "villa",
+    "cabin",
+    "room",
+    "rent",
+    "rental",
+    "book",
+    "booking",
+    "stay",
+    "night",
+    "price",
+    "guest",
+    "available",
+    "availability",
+    "amenities",
+    "location",
+    "find",
+    "search",
+    "show me",
+    "do you have",
+  ];
+  const lower = message.toLowerCase();
+  return keywords.some((kw) => lower.includes(kw));
+}
+
 const chatPrompt = ChatPromptTemplate.fromMessages([
   [
     "system",
     `You are a helpful Airbnb assistant. You help guests find listings, answer questions about properties, and assist with bookings.
+You can also respond normally to greetings and general questions — you don't have to talk only about listings.
 
-Available listings context: {listingsContext}
+{listingsContext}
 
 Be friendly, concise, and helpful. If you don't know something, say so.
-If asked about specific listings, refer to the context provided.`,
+If asked about specific listings, refer to the context provided.
+If asked about listings that are not in the context or don't exist, clearly state that those listings are not available — do NOT make up or suggest unrelated listings.`,
   ],
   ["placeholder", "{chat_history}"],
   ["human", "{input}"],
@@ -167,35 +263,44 @@ export async function chat(req: Request, res: Response): Promise<void> {
   const { message, sessionId } = req.body;
 
   if (!message || !sessionId) {
-    res
-      .status(400)
-      .json({ error: "message and sessionId are required" });
+    res.status(400).json({ error: "message and sessionId are required" });
     return;
   }
 
-  // Fetch recent listings to give the AI context about available properties
-  const listings = await prisma.listing.findMany({
-    take: 5,
-    select: {
-      title: true,
-      location: true,
-      pricePerNight: true,
-      type: true,
-      guests: true,
-      amenities: true,
-    },
-  });
+  let listingsContext = "No listing context provided.";
 
-  const listingsContext = listings
-    .map(
-      (l) =>
-        `- ${l.title} in ${l.location}: $${l.pricePerNight}/night, ${l.type}, up to ${l.guests} guests, amenities: ${l.amenities.join(", ")}`,
-    )
-    .join("\\n");
+  // Only fetch listings from the DB if the message is likely listing-related
+  if (isListingRelated(message)) {
+    const listings = await prisma.listing.findMany({
+      take: 5,
+      select: {
+        title: true,
+        location: true,
+        pricePerNight: true,
+        type: true,
+        guests: true,
+        amenities: true,
+      },
+    });
+
+    if (listings.length > 0) {
+      listingsContext =
+        "Available listings:\n" +
+        listings
+          .map(
+            (l) =>
+              `- ${l.title} in ${l.location}: $${l.pricePerNight}/night, ${l.type}, up to ${l.guests} guests, amenities: ${l.amenities.join(", ")}`
+          )
+          .join("\n");
+    } else {
+      listingsContext =
+        "There are currently no listings available in the database.";
+    }
+  }
 
   const reply = await chainWithHistory.invoke(
     { input: message, listingsContext },
-    { configurable: { sessionId } },
+    { configurable: { sessionId } }
   );
 
   res.json({ reply, sessionId });

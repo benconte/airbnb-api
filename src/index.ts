@@ -13,6 +13,7 @@ const PORT = process.env["PORT"] ?? 3333;
 // Middleware
 app.use(express.json());
 app.use(compression());
+app.set("trust proxy", 1);
 
 // Apply rate limiters
 app.use(generalLimiter);

@@ -72,7 +72,7 @@ export async function naturalLanguageSearch(req: Request, res: Response) {
     take: 10,
   });
 
-  res.json({
+  return res.json({
     query,
     extractedFilters: filters,
     results: listings,
@@ -124,7 +124,7 @@ export async function generateListingDescription(req: Request, res: Response) {
     price,
   });
 
-  res.json({ description });
+  return res.json({ description });
 }
 
 // ─── Chatbot ──────────────────────────────────────────────────────────────────
@@ -170,6 +170,7 @@ export async function chat(req: Request, res: Response): Promise<void> {
     res
       .status(400)
       .json({ error: "message and sessionId are required" });
+    return;
   }
 
   // Fetch recent listings to give the AI context about available properties

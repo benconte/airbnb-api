@@ -3,6 +3,7 @@ import express, { NextFunction, Request, Response } from "express";
 import { connectDB } from "./config/prisma";
 import { setupSwagger } from "./config/swagger";
 import morgan from "morgan";
+import cors from "cors";
 import compression from "compression";
 import { generalLimiter, strictLimiter } from "./middlewares/rateLimiter";
 import v1Router from "./routes/v1/index.js";
@@ -11,6 +12,7 @@ const app = express();
 const PORT = process.env["PORT"] ?? 3333;
 
 // Middleware
+app.use(cors())
 app.use(express.json());
 app.use(compression());
 app.set("trust proxy", 1);

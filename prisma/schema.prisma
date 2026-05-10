@@ -48,6 +48,7 @@ model User {
   listings Listing[]
   bookings Booking[]
   reviews  Review[]
+  wishlists Listing[] @relation("UserWishlists")
 
   @@index([name])
   @@index([role])
@@ -71,6 +72,7 @@ model Listing {
   bookings Booking[]
   photos   ListingPhoto[]
   reviews  Review[]
+  wishlistedBy User[] @relation("UserWishlists")
 
   // Indexes for frequently filtered fields
   @@index([location])

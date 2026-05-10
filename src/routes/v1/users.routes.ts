@@ -7,6 +7,8 @@ import {
   deleteUser,
   getUserListings,
   getUserBookings,
+  getUserWishlists,
+  toggleUserWishlist,
 } from "../../controllers/v1/users.controller";
 import { getUsersStats } from "../../controllers/v1/stats.controller";
 
@@ -261,6 +263,10 @@ router.delete("/:id", deleteUser);
 router.get("/stats", getUsersStats);
 
 router.get("/:id/listings", getUserListings);
+router.get("/:id/wishlists", getUserWishlists);
+router.post("/:id/wishlists/:listingId", toggleUserWishlist);
+router.get("/:id/wishlists", getUserWishlists);
+router.post("/:id/wishlists/:listingId", toggleUserWishlist);
 
 /**
  * @swagger

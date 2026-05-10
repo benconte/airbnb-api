@@ -4,6 +4,103 @@ import { Prisma, ListingType } from "../../../generated/prisma/client";
 import prisma from "../../config/prisma";
 import { getCache, setCache, clearCachePrefix } from "../../config/cache";
 
+// ── Home page featured sections ──────────────────────────────────────────────
+
+export interface FeaturedSection {
+  title: string;
+  subtitle?: string;
+  listings: FeaturedListing[];
+}
+
+export interface FeaturedListing {
+  id: string;
+  title: string;
+  location: string;
+  pricePerNight: number;
+  rating: number | null;
+  photos: { url: string }[];
+  guestFavorite: boolean;
+}
+
+/** GET /api/v1/listings/featured
+ *  Returns up to `sections` location-based carousels, each with `perSection`
+ *  top-rated listings. Sections are built from the most-populated distinct
+ *  locations found in the database.
+ */
+export const getFeaturedListings = async (req: Request, res: Response): Promise<void> => {
+  try {
+    const cacheKey = `listings_featured_${req.originalUrl}`;
+    const cached = getCache(cacheKey);
+    if (cached) {
+      res.json(cached);
+      return;
+    }
+
+    const maxSections = Math.max(1, parseInt((req.query.sections as string) ?? "10", 10) || 10);
+    const perSection = Math.max(1, parseInt((req.query.perSection as string) ?? "20", 10) || 20);
+
+    // Discover the most-populated locations.
+    const locationGroups = await prisma.listing.groupBy({
+      by: ["location"],
+      _count: { location: true },
+      orderBy: { _count: { location: "desc" } },
+      take: maxSections,
+    });
+
+    if (locationGroups.length === 0) {
+      res.json({ sections: [] });
+      return;
+    }
+
+    // Fetch top-rated listings for each location in parallel.
+    const sectionPromises = locationGroups.map(async (group) => {
+      const location = group.location;
+
+      const listings = await prisma.listing.findMany({
+        where: { location: { contains: location, mode: "insensitive" } },
+        orderBy: [
+          { rating: { sort: "desc", nulls: "last" } },
+          { createdAt: "desc" },
+        ],
+        take: perSection,
+        select: {
+          id: true,
+          title: true,
+          location: true,
+          pricePerNight: true,
+          rating: true,
+          photos: { select: { url: true }, take: 1 },
+        },
+      });
+
+      const mapped: FeaturedListing[] = listings.map((l) => ({
+        ...l,
+        guestFavorite: l.rating !== null && l.rating >= 4.8,
+      }));
+
+      // Build a human-readable section title from the stored location string.
+      const cityName = location.split(",")[0].trim();
+
+      const section: FeaturedSection = {
+        title: `Places to stay in ${cityName}`,
+        listings: mapped,
+      };
+
+      return section;
+    });
+
+    const sections = await Promise.all(sectionPromises);
+    const filtered = sections.filter((s) => s.listings.length > 0);
+
+    const responseData = { sections: filtered };
+    setCache(cacheKey, responseData, 120); // 2 minutes
+
+    res.json(responseData);
+  } catch (err) {
+    handleError(err, res, "getFeaturedListings");
+  }
+};
+
 export const getAllListings = async (req: Request, res: Response): Promise<void> => {
   try {
     const cacheKey = `listings_${req.originalUrl}`;
@@ -22,8 +119,12 @@ export const getAllListings = async (req: Request, res: Response): Promise<void>
 
     const where: Prisma.ListingWhereInput = {};
 
-    if (location) {
-      where.location = { contains: location, mode: "insensitive" };
+    const searchStr = req.query.search as string || location;
+    if (searchStr) {
+      where.OR = [
+        { title: { contains: searchStr, mode: "insensitive" } },
+        { location: { contains: searchStr, mode: "insensitive" } },
+      ];
     }
 
     if (type && Object.values(ListingType).includes(type as ListingType)) {
@@ -53,9 +154,24 @@ export const getAllListings = async (req: Request, res: Response): Promise<void>
         location: true,
         pricePerNight: true,
         type: true,
+        amenities: true,
+        description: true,
+        reviews: true,
+        hostId: true,
+        _count: {
+          select: {
+            reviews: true,
+          },
+        },
         guests: true,
         rating: true,
         createdAt: true,
+        photos: {
+          where: {
+            listingId: req.params.id as string,
+          },
+          select: { url: true }
+        },
         host: {
           select: { name: true, avatar: true },
         },
@@ -85,6 +201,7 @@ export const getListingById = async (req: Request, res: Response): Promise<void>
       include: {
         host: true,
         bookings: true,
+        photos: true,
       },
     });
 
@@ -109,8 +226,12 @@ export const searchListings = async (req: Request, res: Response): Promise<void>
 
     const where: Prisma.ListingWhereInput = {};
 
-    if (location) {
-      where.location = { contains: location, mode: "insensitive" };
+    const searchStr = req.query.search as string || location;
+    if (searchStr) {
+      where.OR = [
+        { title: { contains: searchStr, mode: "insensitive" } },
+        { location: { contains: searchStr, mode: "insensitive" } },
+      ];
     }
 
     if (type && Object.values(ListingType).includes(type as ListingType)) {
@@ -137,6 +258,7 @@ export const searchListings = async (req: Request, res: Response): Promise<void>
         take: limit,
         include: {
           host: { select: { name: true, email: true } },
+          photos: { select: { url: true } },
         },
       }),
       prisma.listing.count({ where }),
@@ -253,10 +375,10 @@ export const deleteListing = async (req: AuthRequest, res: Response): Promise<vo
     }
 
     const deleted = await prisma.listing.delete({ where: { id } });
-    
+
     clearCachePrefix("listings_");
     clearCachePrefix("stats_");
-    
+
     res.json({ message: "Listing deleted successfully.", listing: deleted });
   } catch (err) {
     handleError(err, res, "deleteListing");

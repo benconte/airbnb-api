@@ -2,16 +2,17 @@ import nodemailer from "nodemailer";
 
 // Transporter is created once at module load — never inside the function
 const transporter = nodemailer.createTransport({
+  // @ts-ignore
   host: "smtp.gmail.com",
-  port: 465,
-  secure: true, // false = STARTTLS on port 587
+  port: 587,
+  secure: false, // false = STARTTLS on port 587
   auth: {
     user: process.env["EMAIL_USER"],
     pass: process.env["EMAIL_PASS"],
   },
-  // tls: {
-  //   rejectUnauthorized: false
-  // }
+  tls: {
+    rejectUnauthorized: false
+  }
 });
 
 export const sendEmail = async (

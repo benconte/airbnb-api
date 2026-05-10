@@ -194,7 +194,7 @@ export const forgotPassword = async (req: Request, res: Response): Promise<void>
         },
       });
 
-      const resetLink = `${process.env["API_URL"] || "http://localhost:3333"}/auth/reset-password/${rawToken}`;
+      const resetLink = `${process.env["SITE_URL"] || "http://localhost:3000"}/reset/${rawToken}`;
 
       try {
         await sendEmail(
@@ -207,7 +207,6 @@ export const forgotPassword = async (req: Request, res: Response): Promise<void>
       }
     }
 
-    // Always return 200 — never reveal whether the email exists
     res.status(200).json({ message: "If that email is registered, a reset link has been sent" });
   } catch (error) {
     res.status(500).json({ message: "Something went wrong" });
@@ -218,6 +217,7 @@ export const resetPassword = async (req: Request, res: Response): Promise<void> 
   try {
     const rawToken = req.params.token as string;
     const { newPassword } = req.body;
+    console.log(newPassword, req.body)
 
     if (!newPassword || newPassword.length < 8) {
       res.status(400).json({ message: "New password must be at least 8 characters long" });
@@ -253,6 +253,7 @@ export const resetPassword = async (req: Request, res: Response): Promise<void> 
 
     res.status(200).json({ message: "Password reset successfully" });
   } catch (error) {
+    console.log(error)
     res.status(500).json({ message: "Something went wrong" });
   }
 };

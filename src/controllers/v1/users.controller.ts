@@ -101,7 +101,10 @@ export const createUser = async (req: Request, res: Response): Promise<void> => 
 
 export const updateUser = async (req: Request, res: Response): Promise<void> => {
   try {
-    const id = req.params.id as string;
+    let id = req.params.id as string;
+    if (id === "me" && (req as any).user) {
+      id = (req as any).user.id;
+    }
 
     const existing = await prisma.user.findFirst({ where: { id } });
     if (!existing) {
@@ -131,9 +134,9 @@ export const deleteUser = async (req: Request, res: Response): Promise<void> => 
     }
 
     const deleted = await prisma.user.delete({ where: { id } });
-    
+
     clearCachePrefix("stats_users");
-    
+
     res.json({ message: "User deleted successfully.", user: deleted });
   } catch (err) {
     handleError(err, res, "deleteUser");
@@ -155,7 +158,7 @@ export const getUserListings = async (req: Request, res: Response): Promise<void
     const skip = (page - 1) * limit;
 
     const [listings, total] = await Promise.all([
-      prisma.listing.findMany({ 
+      prisma.listing.findMany({
         where: { hostId },
         skip,
         take: limit
@@ -202,6 +205,68 @@ export const getUserBookings = async (req: Request, res: Response): Promise<void
     });
   } catch (err) {
     handleError(err, res, "getUserBookings");
+  }
+};
+
+export const getUserWishlists = async (req: Request, res: Response): Promise<void> => {
+  try {
+    const userId = req.params.id as string;
+
+    const user = await prisma.user.findUnique({
+      where: { id: userId },
+      include: {
+        wishlists: {
+          include: {
+            photos: true,
+            host: true,
+          }
+        }
+      }
+    });
+
+    if (!user) {
+      res.status(404).json({ message: "User not found" });
+      return;
+    }
+
+    res.json({ data: user.wishlists });
+  } catch (err) {
+    handleError(err, res, "getUserWishlists");
+  }
+};
+
+export const toggleUserWishlist = async (req: Request, res: Response): Promise<void> => {
+  try {
+    const userId = req.params.id as string;
+    const listingId = req.params.listingId as string;
+
+    const user = await prisma.user.findUnique({
+      where: { id: userId },
+      include: { wishlists: { where: { id: listingId } } }
+    });
+
+    if (!user) {
+      res.status(404).json({ message: "User not found" });
+      return;
+    }
+
+    const isWishlisted = user.wishlists.length > 0;
+
+    if (isWishlisted) {
+      await prisma.user.update({
+        where: { id: userId },
+        data: { wishlists: { disconnect: { id: listingId } } }
+      });
+      res.json({ message: "Removed from wishlists" });
+    } else {
+      await prisma.user.update({
+        where: { id: userId },
+        data: { wishlists: { connect: { id: listingId } } }
+      });
+      res.json({ message: "Added to wishlists" });
+    }
+  } catch (err) {
+    handleError(err, res, "toggleUserWishlist");
   }
 };
 

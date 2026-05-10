@@ -6,6 +6,7 @@ import {
   updateListing,
   deleteListing,
   searchListings,
+  getFeaturedListings,
 } from "../../controllers/v1/listings.controller";
 import { authenticate, requireHost } from "../../middlewares/auth.middleware";
 import { getListingReviews, createReview } from "../../controllers/v1/reviews.controller";
@@ -167,6 +168,31 @@ const router = Router();
  *                       type: integer
  */
 router.get("/search", searchListings);
+
+/**
+ * @swagger
+ * /api/v1/listings/featured:
+ *   get:
+ *     summary: Get featured listings grouped by top locations (for the home page)
+ *     tags: [Listings]
+ *     parameters:
+ *       - in: query
+ *         name: sections
+ *         schema:
+ *           type: integer
+ *           default: 3
+ *         description: Number of location sections to return
+ *       - in: query
+ *         name: perSection
+ *         schema:
+ *           type: integer
+ *           default: 8
+ *         description: Number of listings per section
+ *     responses:
+ *       200:
+ *         description: Featured listing sections for the home page
+ */
+router.get("/featured", getFeaturedListings);
 
 /**
  * @swagger

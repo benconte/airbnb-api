@@ -272,7 +272,7 @@ export const searchListings = async (req: Request, res: Response): Promise<void>
 
 export const createListing = async (req: AuthRequest, res: Response): Promise<void> => {
   try {
-    const { title, description, location, pricePerNight, guests, type, amenities, rating } =
+    const { title, description, location, pricePerNight, guests, type, amenities } =
       req.body as {
         title?: string;
         description?: string;
@@ -281,7 +281,6 @@ export const createListing = async (req: AuthRequest, res: Response): Promise<vo
         guests?: number;
         type?: ListingType;
         amenities?: string[];
-        rating?: number;
       };
 
     if (!title || !description || !location || !pricePerNight || !guests || !type || !amenities) {
@@ -314,7 +313,6 @@ export const createListing = async (req: AuthRequest, res: Response): Promise<vo
         type,
         amenities,
         hostId,
-        ...(rating !== undefined && { rating }),
       },
     });
 

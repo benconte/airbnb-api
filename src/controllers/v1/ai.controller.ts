@@ -190,6 +190,12 @@ export async function generateListingDescription(
 // In production, store these in Redis or a database.
 const sessionHistories = new Map<string, InMemoryChatMessageHistory>();
 
+// Track the last search filters per session so follow-up messages inherit context
+const sessionLastFilters = new Map<
+  string,
+  { location?: string; type?: string; guests?: number; maxPrice?: number }
+>();
+
 function getSessionHistory(sessionId: string): InMemoryChatMessageHistory {
   if (!sessionHistories.has(sessionId)) {
     sessionHistories.set(sessionId, new InMemoryChatMessageHistory());
@@ -198,54 +204,99 @@ function getSessionHistory(sessionId: string): InMemoryChatMessageHistory {
 }
 
 /**
- * Lightweight heuristic to decide if a user message is listing-related.
- * This avoids querying the DB and inflating listing context for greetings
- * or unrelated questions (e.g. "hi", "how are you", "what's 2+2").
+ * Prompt that extracts search filters from a user message WITH conversation context.
+ * Handles follow-ups like "how about miami" or "can you recommend some".
  */
-function isListingRelated(message: string): boolean {
-  const keywords = [
-    "listing",
-    "listings",
-    "property",
-    "properties",
-    "apartment",
-    "house",
-    "villa",
-    "cabin",
-    "room",
-    "rent",
-    "rental",
-    "book",
-    "booking",
-    "stay",
-    "night",
-    "price",
-    "guest",
-    "available",
-    "availability",
-    "amenities",
-    "location",
-    "find",
-    "search",
-    "show me",
-    "do you have",
-  ];
-  const lower = message.toLowerCase();
-  return keywords.some((kw) => lower.includes(kw));
-}
+const contextualSearchPrompt = ChatPromptTemplate.fromTemplate(`
+You are a search filter extractor for an Airbnb-like property rental platform.
 
-const chatPrompt = ChatPromptTemplate.fromMessages([
-  [
-    "system",
-    `You are a helpful Airbnb assistant. You help guests find listings, answer questions about properties, and assist with bookings.
-You can also respond normally to greetings and general questions — you don't have to talk only about listings.
+Recent conversation context (last few exchanges):
+{conversationContext}
+
+Current user message: {message}
+
+Your task: Extract property search filters from the CURRENT message, using the conversation context to fill in missing info for follow-up questions.
+
+Examples of follow-ups that need context:
+- "how about miami" → inherit previous type/guests/price, change location to Miami
+- "can you recommend some" → keep all previous filters
+- "show me cheaper options" → lower the maxPrice from previous search
+- "what about villas?" → inherit previous location/guests, change type to VILLA
+
+Rules:
+1. If the message is a property search or follow-up, return a JSON with these optional fields:
+   - location: string (city or area)
+   - type: one of APARTMENT, HOUSE, VILLA, CABIN
+   - guests: number
+   - maxPrice: number (USD per night)
+   - isListingQuery: true
+
+2. If the message is completely unrelated to properties/bookings (e.g. "what's the weather?", "tell me a joke"), return:
+   {{"isListingQuery": false}}
+
+3. If the message is about booking help, disputes, or platform navigation (not searching for listings), return:
+   {{"isListingQuery": false}}
+
+Return ONLY valid JSON. No explanation. No markdown.
+`);
+
+const contextualSearchChain = contextualSearchPrompt.pipe(llm).pipe(parser);
+
+const HELPDESK_SYSTEM_PROMPT = `You are StayBot, a friendly and knowledgeable help-desk assistant for StayHub — an Airbnb-like property rental platform.
+
+Your role is to help users with:
+1. **Finding listings** — help guests search for properties by location, type, guests, or price
+2. **Booking help** — explain how bookings work, booking statuses (PENDING → host approval → CONFIRMED or CANCELLED)
+3. **Disputes** — explain what disputes are, how to file one, and what happens after
+4. **Platform navigation** — guide users to the right pages and features
+5. **General support** — answer questions about the platform with warmth and clarity
+
+## Key Platform Knowledge:
+
+### Bookings:
+- Guests browse listings and submit a booking request with check-in/check-out dates
+- Bookings start as **PENDING** — the host must approve or decline
+- Once approved, the booking becomes **CONFIRMED**
+- Hosts can also **CANCEL** bookings. Guests receive email notifications on status changes
+- Guests can view their bookings on the **Trips** page (/trips)
+
+### Disputes:
+- A dispute can be filed when there's a problem with a booking (e.g. property not as described, refund issues, host misconduct)
+- **How to file a dispute**: Go to your booking on the Trips page, and use the "File Dispute" option
+- **Required information**: Title, description, reason (e.g. PROPERTY_CONDITION, REFUND_ISSUE, HOST_MISCONDUCT, GUEST_MISCONDUCT, CANCELLATION, OTHER), and the booking ID
+- **After filing**: The dispute is reviewed by our admin team with status: OPEN → UNDER_REVIEW → RESOLVED or CLOSED
+- **Resolution**: Admins may provide a resolution note and update the dispute status accordingly
+- Only guests who made the booking can file a dispute for that booking
+
+### Listing Types:
+- APARTMENT, HOUSE, VILLA, CABIN
+
+### User Roles:
+- **Guest**: Browse and book listings, manage trips, file disputes
+- **Host**: List properties, manage bookings (approve/decline), view analytics
+- **Admin**: Manage all users, listings, bookings, disputes
+
+### Quick Navigation:
+- Browse listings: /listings
+- My trips/bookings: /trips
+- My wishlists: /wishlists  
+- Host dashboard: /dashboard
+- Admin portal: /admin
+- Profile settings: /profile
 
 {listingsContext}
 
-Be friendly, concise, and helpful. If you don't know something, say so.
-If asked about specific listings, refer to the context provided.
-If asked about listings that are not in the context or don't exist, clearly state that those listings are not available — do NOT make up or suggest unrelated listings.`,
-  ],
+## Behavior Guidelines:
+- **Always greet users warmly** and ask what they're looking for if it's the start of a conversation
+- **Offer helpful suggestions** proactively — e.g., mention you can help find listings, explain bookings, or handle disputes
+- **Be concise but thorough** — give clear answers without overwhelming users
+- **Use emojis sparingly** to keep the tone friendly (1-2 per message max)
+- **Never make up listings** — only reference actual listings from the context provided
+- **For greetings**: Respond warmly, introduce yourself, and offer 3-4 quick things you can help with
+- If you don't know something, say so honestly and suggest the user contact support`;
+
+const chatPrompt = ChatPromptTemplate.fromMessages([
+  ["system", HELPDESK_SYSTEM_PROMPT],
   ["placeholder", "{chat_history}"],
   ["human", "{input}"],
 ]);
@@ -267,34 +318,127 @@ export async function chat(req: Request, res: Response): Promise<void> {
     return;
   }
 
-  let listingsContext = "No listing context provided.";
+  let listingsContext = "No specific listing context loaded for this message.";
+  let shownListings: {
+    id: string;
+    title: string;
+    location: string;
+    pricePerNight: number;
+    type: string;
+    guests: number;
+    rating: number | null;
+    photo: string | null;
+  }[] = [];
 
-  // Only fetch listings from the DB if the message is likely listing-related
-  if (isListingRelated(message)) {
+  // Build a short conversation context string for the filter extractor
+  const history = getSessionHistory(sessionId);
+  const recentMessages = await history.getMessages();
+  const conversationContext =
+    recentMessages.length === 0
+      ? "No prior conversation."
+      : recentMessages
+        .slice(-6) // last 3 exchanges
+        .map((m) => `${m.type === "human" ? "User" : "Assistant"}: ${typeof m.content === "string" ? m.content : JSON.stringify(m.content)}`)
+        .join("\n");
+
+  // Use LLM to extract filters (context-aware — handles follow-ups)
+  let extractedFilters: {
+    isListingQuery?: boolean;
+    location?: string;
+    type?: string;
+    guests?: number;
+    maxPrice?: number;
+  } = {};
+
+  try {
+    extractedFilters = (await contextualSearchChain.invoke({
+      message,
+      conversationContext,
+    })) as typeof extractedFilters;
+  } catch {
+    // If filter extraction fails, treat as non-listing query
+    extractedFilters = { isListingQuery: false };
+  }
+
+  if (extractedFilters.isListingQuery !== false) {
+    // Merge with session's last known filters for follow-up continuity
+    const lastFilters = sessionLastFilters.get(sessionId) ?? {};
+    const mergedFilters = {
+      location: extractedFilters.location ?? lastFilters.location,
+      type: extractedFilters.type ?? lastFilters.type,
+      guests: extractedFilters.guests ?? lastFilters.guests,
+      maxPrice: extractedFilters.maxPrice ?? lastFilters.maxPrice,
+    };
+
+    // Persist updated filters for next follow-up
+    const updatedFilters = {
+      ...(mergedFilters.location && { location: mergedFilters.location }),
+      ...(mergedFilters.type && { type: mergedFilters.type }),
+      ...(mergedFilters.guests && { guests: mergedFilters.guests }),
+      ...(mergedFilters.maxPrice && { maxPrice: mergedFilters.maxPrice }),
+    };
+    if (Object.keys(updatedFilters).length > 0) {
+      sessionLastFilters.set(sessionId, updatedFilters);
+    }
+
+    // Build Prisma where clause
+    const where: Record<string, unknown> = {};
+    if (mergedFilters.location) {
+      where["location"] = { contains: mergedFilters.location, mode: "insensitive" };
+    }
+    if (mergedFilters.type) {
+      where["type"] = mergedFilters.type;
+    }
+    if (mergedFilters.guests) {
+      where["guests"] = { gte: mergedFilters.guests };
+    }
+    if (mergedFilters.maxPrice) {
+      where["pricePerNight"] = { lte: mergedFilters.maxPrice };
+    }
+
     const listings = await prisma.listing.findMany({
-      take: 5,
+      where,
+      take: 6,
       select: {
+        id: true,
         title: true,
         location: true,
         pricePerNight: true,
         type: true,
         guests: true,
         amenities: true,
+        rating: true,
+        photos: { select: { url: true }, take: 1 },
       },
+      orderBy: [{ rating: { sort: "desc", nulls: "last" } }, { createdAt: "desc" }],
     });
 
     if (listings.length > 0) {
+      shownListings = listings.map((l) => ({
+        id: l.id,
+        title: l.title,
+        location: l.location,
+        pricePerNight: l.pricePerNight,
+        type: l.type,
+        guests: l.guests,
+        rating: l.rating,
+        photo: l.photos[0]?.url ?? null,
+      }));
+
       listingsContext =
-        "Available listings:\n" +
+        "### Available Listings matching the user's search (shown as clickable cards to the user):\n" +
         listings
           .map(
             (l) =>
-              `- ${l.title} in ${l.location}: $${l.pricePerNight}/night, ${l.type}, up to ${l.guests} guests, amenities: ${l.amenities.join(", ")}`
+              `- **${l.title}** in ${l.location}: $${l.pricePerNight}/night, ${l.type}, up to ${l.guests} guests${l.rating ? `, ⭐ ${l.rating}` : ""}, amenities: ${l.amenities.slice(0, 5).join(", ")}${l.amenities.length > 5 ? " and more" : ""}`
           )
-          .join("\n");
+          .join("\n") +
+        "\n\nIMPORTANT: The user will see clickable listing cards below your message — you do NOT need to provide links or URLs yourself. Just reference the listing names naturally in your reply.";
     } else {
       listingsContext =
-        "There are currently no listings available in the database.";
+        mergedFilters.location
+          ? `No listings found in ${mergedFilters.location} matching the current filters. Let the user know and suggest broadening their search.`
+          : "There are currently no listings available matching those filters.";
     }
   }
 
@@ -303,5 +447,5 @@ export async function chat(req: Request, res: Response): Promise<void> {
     { configurable: { sessionId } }
   );
 
-  res.json({ reply, sessionId });
+  res.json({ reply, sessionId, listings: shownListings });
 }

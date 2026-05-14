@@ -10,17 +10,25 @@ export const getAllBookings = async (req: Request, res: Response): Promise<void>
     const page = Math.max(1, parseInt((req.query.page as string) ?? "1", 10) || 1);
     const limit = Math.max(1, parseInt((req.query.limit as string) ?? "10", 10) || 10);
     const skip = (page - 1) * limit;
+    const status = req.query.status as string | undefined;
+
+    const where: Prisma.BookingWhereInput = {};
+    if (status && ["PENDING", "CONFIRMED", "CANCELLED"].includes(status)) {
+      where.status = status as BookingStatus;
+    }
 
     const [bookings, total] = await Promise.all([
       prisma.booking.findMany({
+        where,
         skip,
         take: limit,
+        orderBy: { createdAt: "desc" },
         include: {
-          guest: { select: { name: true } },
-          listing: { select: { title: true, location: true } },
+          guest: { select: { id: true, name: true, email: true, avatar: true } },
+          listing: { select: { id: true, title: true, location: true } },
         },
       }),
-      prisma.booking.count(),
+      prisma.booking.count({ where }),
     ]);
 
     res.json({

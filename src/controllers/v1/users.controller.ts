@@ -9,18 +9,26 @@ export const getAllUsers = async (req: Request, res: Response): Promise<void> =>
     const page = Math.max(1, parseInt((req.query.page as string) ?? "1", 10) || 1);
     const limit = Math.max(1, parseInt((req.query.limit as string) ?? "10", 10) || 10);
     const skip = (page - 1) * limit;
+    const role = req.query.role as string | undefined;
+
+    const where: Prisma.UserWhereInput = {};
+    if (role && ["ADMIN", "HOST", "GUEST"].includes(role)) {
+      where.role = role as "ADMIN" | "HOST" | "GUEST";
+    }
 
     const [users, total] = await Promise.all([
       prisma.user.findMany({
+        where,
         skip,
         take: limit,
+        orderBy: { createdAt: "desc" },
         include: {
           _count: {
             select: { listings: true },
           },
         },
       }),
-      prisma.user.count(),
+      prisma.user.count({ where }),
     ]);
 
     res.json({

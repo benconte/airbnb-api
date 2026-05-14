@@ -167,9 +167,6 @@ export const getAllListings = async (req: Request, res: Response): Promise<void>
         rating: true,
         createdAt: true,
         photos: {
-          where: {
-            listingId: req.params.id as string,
-          },
           select: { url: true }
         },
         host: {

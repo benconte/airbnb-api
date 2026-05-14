@@ -29,6 +29,22 @@ enum BookingStatus {
   CANCELLED
 }
 
+enum DisputeStatus {
+  OPEN
+  UNDER_REVIEW
+  RESOLVED
+  DISMISSED
+}
+
+enum DisputeReason {
+  PROPERTY_CONDITION
+  PAYMENT_ISSUE
+  HOST_BEHAVIOUR
+  GUEST_BEHAVIOUR
+  CANCELLATION_POLICY
+  OTHER
+}
+
 model User {
   id               String    @id @default(uuid())
   name             String
@@ -45,10 +61,11 @@ model User {
   resetToken       String?
   resetTokenExpiry DateTime?
 
-  listings Listing[]
-  bookings Booking[]
-  reviews  Review[]
-  wishlists Listing[] @relation("UserWishlists")
+  listings   Listing[]
+  bookings   Booking[]
+  reviews    Review[]
+  wishlists  Listing[]  @relation("UserWishlists")
+  disputes   Dispute[]  @relation("DisputeReporter")
 
   @@index([name])
   @@index([role])
@@ -98,11 +115,12 @@ model Booking {
   status     BookingStatus @default(PENDING)
   createdAt  DateTime      @default(now())
 
-  guest     User    @relation(fields: [guestId], references: [id], onDelete: Cascade)
+  guest     User      @relation(fields: [guestId], references: [id], onDelete: Cascade)
   guestId   String
-  listing   Listing @relation(fields: [listingId], references: [id], onDelete: Cascade)
+  listing   Listing   @relation(fields: [listingId], references: [id], onDelete: Cascade)
   listingId String
-  guests    Int     @default(1)
+  guests    Int       @default(1)
+  disputes  Dispute[]
 
   @@index([guestId])
   @@index([listingId])
@@ -122,4 +140,24 @@ model Review {
 
   @@index([userId])
   @@index([listingId])
+}
+
+model Dispute {
+  id          String        @id @default(uuid())
+  title       String
+  description String
+  reason      DisputeReason @default(OTHER)
+  status      DisputeStatus @default(OPEN)
+  resolution  String?
+  createdAt   DateTime      @default(now())
+  updatedAt   DateTime      @updatedAt
+
+  reporter    User    @relation("DisputeReporter", fields: [reporterId], references: [id], onDelete: Cascade)
+  reporterId  String
+  booking     Booking @relation(fields: [bookingId], references: [id], onDelete: Cascade)
+  bookingId   String
+
+  @@index([reporterId])
+  @@index([bookingId])
+  @@index([status])
 }

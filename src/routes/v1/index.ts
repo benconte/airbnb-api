@@ -5,8 +5,10 @@ import listingsRouter from "./listings.routes.js";
 import bookingsRouter from "./bookings.routes.js";
 import reviewsRouter from "./reviews.routes.js";
 import aiRouter from "./ai.routes.js";
+import hostRouter from "./host.routes.js";
+import disputesRouter from "./disputes.routes.js";
 import { listingUploadRouter, userUploadRouter } from "./upload.routes.js";
-import { getListingsStats, getUsersStats } from "../../controllers/v1/stats.controller.js";
+import { getListingsStats, getUsersStats, getAdminStats } from "../../controllers/v1/stats.controller.js";
 
 const v1Router = Router();
 
@@ -20,5 +22,8 @@ v1Router.use("/listings", listingUploadRouter); // POST /listings/:id/photos, DE
 v1Router.use("/bookings", bookingsRouter);
 v1Router.use("/reviews", reviewsRouter);
 v1Router.use("/ai", aiRouter);
+v1Router.use("/host", hostRouter);              // GET /host/listings, /host/bookings, /host/analytics
+v1Router.use("/disputes", disputesRouter);      // GET/POST/PATCH/DELETE /disputes
+v1Router.get("/admin/stats", getAdminStats);    // GET /admin/stats
 
 export default v1Router;

@@ -3,6 +3,8 @@ import { AuthRequest } from "../../middlewares/auth.middleware";
 import { Prisma, ListingType } from "../../../generated/prisma/client";
 import prisma from "../../config/prisma";
 import { getCache, setCache, clearCachePrefix } from "../../config/cache";
+import { sendEmail } from "../../config/email";
+import { listingApprovedEmail, listingRejectedEmail } from "../../templates/emails";
 
 // ── Home page featured sections ──────────────────────────────────────────────
 
@@ -57,7 +59,13 @@ export const getFeaturedListings = async (req: Request, res: Response): Promise<
       const location = group.location;
 
       const listings = await prisma.listing.findMany({
-        where: { location: { contains: location, mode: "insensitive" } },
+        where: {
+          location: {
+            contains: location,
+            mode: "insensitive"
+          },
+          isApproved: true
+        },
         orderBy: [
           { rating: { sort: "desc", nulls: "last" } },
           { createdAt: "desc" },
@@ -143,6 +151,7 @@ export const getAllListings = async (req: Request, res: Response): Promise<void>
       allowedSortFields.includes(sortBy as SortField) ? (sortBy as SortField) : "createdAt";
     const sortOrder: "asc" | "desc" = order === "asc" ? "asc" : "desc";
 
+    where.isApproved = true;
     const listings = await prisma.listing.findMany({
       where,
       skip,
@@ -194,11 +203,15 @@ export const getListingById = async (req: Request, res: Response): Promise<void>
   try {
     const id = req.params.id as string;
     const listing = await prisma.listing.findUnique({
-      where: { id },
+      where: { id, isApproved: true },
       include: {
         host: true,
         bookings: true,
         photos: true,
+        pricings: {
+          where: { isActive: true },
+          orderBy: [{ sortOrder: "asc" }, { createdAt: "asc" }],
+        },
       },
     });
 
@@ -247,6 +260,7 @@ export const searchListings = async (req: Request, res: Response): Promise<void>
       const parsedGuests = parseInt(guests, 10);
       if (!isNaN(parsedGuests)) where.guests = { gte: parsedGuests };
     }
+    where.isApproved = true;
 
     const [listings, total] = await Promise.all([
       prisma.listing.findMany({
@@ -401,3 +415,144 @@ function handleError(err: unknown, res: Response, operation: string): void {
   console.error(`[${operation}] Unexpected error:`, err);
   res.status(500).json({ message: "Something went wrong." });
 }
+
+
+/**
+ * PATCH /api/v1/admin/listings/:id/approve
+ * Admin-only. Marks a listing as approved and notifies the host.
+ */
+export const approveListing = async (req: AuthRequest, res: Response): Promise<void> => {
+  try {
+    const { id } = req.params as { id: string };
+
+    const listing = await prisma.listing.findUnique({
+      where: { id },
+      include: { host: { select: { id: true, name: true, email: true } } },
+    });
+
+    if (!listing) {
+      res.status(404).json({ message: `Listing with id ${id} not found.` });
+      return;
+    }
+
+    if (listing.isApproved) {
+      res.status(400).json({ message: "Listing is already approved." });
+      return;
+    }
+
+    const updated = await prisma.listing.update({
+      where: { id },
+      data: { isApproved: true },
+    });
+
+    clearCachePrefix("listings_");
+    clearCachePrefix("stats_");
+
+    // Fire-and-forget email — don't block the response
+    sendEmail(
+      listing.host.email,
+      `Your listing "${listing.title}" has been approved!`,
+      listingApprovedEmail(listing.host.name, listing.title)
+    ).catch((err) => console.error("[approveListing] Email failed:", err));
+
+    res.json({ message: "Listing approved successfully.", listing: updated });
+  } catch (err) {
+    handleError(err, res, "approveListing");
+  }
+};
+
+/**
+ * PATCH /api/v1/admin/listings/:id/reject
+ * Admin-only. Marks a listing as not approved (or keeps it unapproved),
+ * and emails the host with the provided reason.
+ *
+ * Body: { reason: string }
+ */
+export const rejectListing = async (req: AuthRequest, res: Response): Promise<void> => {
+  try {
+    const { id } = req.params as { id: string };
+    const { reason } = req.body as { reason?: string };
+
+    if (!reason || reason.trim() === "") {
+      res.status(400).json({ message: "A rejection reason is required." });
+      return;
+    }
+
+    const listing = await prisma.listing.findUnique({
+      where: { id },
+      include: { host: { select: { id: true, name: true, email: true } } },
+    });
+
+    if (!listing) {
+      res.status(404).json({ message: `Listing with id ${id} not found.` });
+      return;
+    }
+
+    // Reset approval (handles re-rejection of previously approved listings too)
+    const updated = await prisma.listing.update({
+      where: { id },
+      data: { isApproved: false },
+    });
+
+    clearCachePrefix("listings_");
+    clearCachePrefix("stats_");
+
+    sendEmail(
+      listing.host.email,
+      `Update on your listing "${listing.title}"`,
+      listingRejectedEmail(listing.host.name, listing.title, reason.trim())
+    ).catch((err) => console.error("[rejectListing] Email failed:", err));
+
+    res.json({ message: "Listing rejected. Host has been notified.", listing: updated });
+  } catch (err) {
+    handleError(err, res, "rejectListing");
+  }
+};
+
+/**
+ * GET /api/v1/admin/listings/pending
+ * Admin-only. Returns all listings pending approval, with pagination.
+ */
+export const getPendingListings = async (req: AuthRequest, res: Response): Promise<void> => {
+  try {
+    const page = Math.max(1, parseInt((req.query.page as string) ?? "1", 10) || 1);
+    const limit = Math.max(1, parseInt((req.query.limit as string) ?? "20", 10) || 20);
+    const skip = (page - 1) * limit;
+
+    const [listings, total, totalApproved] = await Promise.all([
+      prisma.listing.findMany({
+        where: { isApproved: false },
+        skip,
+        take: limit,
+        orderBy: { createdAt: "desc" },
+        include: {
+          host: { select: { id: true, name: true, email: true, avatar: true } },
+          photos: { select: { url: true } },
+          _count: { select: { bookings: true, reviews: true } },
+        },
+      }),
+      prisma.listing.count({ where: { isApproved: false } }),
+      prisma.listing.count({ where: { isApproved: true } }),
+      // "rejected" = isApproved: false AND older than 5 minutes (heuristic for explicitly rejected)
+      // In a real system you'd add a `status` enum. For now we return all unapproved.
+      prisma.listing.count({ where: { isApproved: false } }),
+    ]);
+
+    res.json({
+      data: listings,
+      meta: {
+        page,
+        limit,
+        total,
+        totalPages: Math.ceil(total / limit),
+        stats: {
+          pending: total,
+          approved: totalApproved,
+          total: total + totalApproved,
+        },
+      },
+    });
+  } catch (err) {
+    handleError(err, res, "getPendingListings");
+  }
+};

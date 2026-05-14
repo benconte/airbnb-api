@@ -3,7 +3,7 @@ import { AuthRequest } from "../../middlewares/auth.middleware";
 import { Prisma, BookingStatus } from "../../../generated/prisma/client";
 import prisma from "../../config/prisma";
 import { sendEmail } from "../../config/email";
-import { bookingConfirmationEmail, bookingCancellationEmail } from "../../templates/emails";
+import { bookingConfirmationEmail, bookingCancellationWithReasonEmail } from "../../templates/emails";
 
 export const getAllBookings = async (req: Request, res: Response): Promise<void> => {
   try {
@@ -186,7 +186,7 @@ export const createBooking = async (req: AuthRequest, res: Response): Promise<vo
       if (guest) {
         await sendEmail(
           guest.email,
-          "Your Airbnb Booking is Confirmed!",
+          "Booking Request Received — Pending Host Approval",
           bookingConfirmationEmail(
             guest.name,
             listing.title,
@@ -208,6 +208,7 @@ export const createBooking = async (req: AuthRequest, res: Response): Promise<vo
 export const deleteBooking = async (req: AuthRequest, res: Response): Promise<void> => {
   try {
     const id = req.params.id as string;
+    const { reason } = req.body as { reason?: string };
 
     const existing = await prisma.booking.findFirst({
       where: { id },
@@ -222,7 +223,8 @@ export const deleteBooking = async (req: AuthRequest, res: Response): Promise<vo
       return;
     }
 
-    if (existing.guestId !== req.userId && req.role !== "ADMIN") {
+    // Guests can cancel their own bookings; hosts can cancel bookings for their listings
+    if (existing.guestId !== req.userId && req.role !== "ADMIN" && req.role !== "HOST") {
       res.status(403).json({ message: "You can only cancel your own bookings" });
       return;
     }
@@ -234,7 +236,10 @@ export const deleteBooking = async (req: AuthRequest, res: Response): Promise<vo
 
     const deleted = await prisma.booking.update({
       where: { id },
-      data: { status: "CANCELLED" },
+      data: {
+        status: "CANCELLED",
+        ...(reason ? { cancellationReason: reason } : {}),
+      },
     });
 
     // Send response first, then fire email
@@ -244,11 +249,12 @@ export const deleteBooking = async (req: AuthRequest, res: Response): Promise<vo
       await sendEmail(
         existing.guest.email,
         "Your Airbnb Booking has been Cancelled",
-        bookingCancellationEmail(
+        bookingCancellationWithReasonEmail(
           existing.guest.name,
           existing.listing.title,
           existing.checkIn.toDateString(),
-          existing.checkOut.toDateString()
+          existing.checkOut.toDateString(),
+          reason
         )
       );
     } catch (emailErr) {

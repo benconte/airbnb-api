@@ -7,10 +7,19 @@ import {
   deleteListing,
   searchListings,
   getFeaturedListings,
+  getPendingListings,
+  approveListing,
+  rejectListing,
 } from "../../controllers/v1/listings.controller";
-import { authenticate, requireHost } from "../../middlewares/auth.middleware";
+import { authenticate, requireAdmin, requireHost } from "../../middlewares/auth.middleware";
 import { getListingReviews, createReview } from "../../controllers/v1/reviews.controller";
 import { getListingsStats } from "../../controllers/v1/stats.controller";
+import {
+  getListingPricings,
+  createListingPricing,
+  updateListingPricing,
+  deleteListingPricing,
+} from "../../controllers/v1/pricing.controller";
 
 const router = Router();
 
@@ -567,5 +576,110 @@ router.put("/:id", authenticate, updateListing);
  *               $ref: '#/components/schemas/ErrorResponse'
  */
 router.delete("/:id", authenticate, deleteListing);
+
+// ── Listing Pricing Tiers ─────────────────────────────────────────────────────
+
+/** GET /api/v1/listings/:id/pricings  — public */
+router.get("/:id/pricings", getListingPricings);
+
+/** POST /api/v1/listings/:id/pricings  — host only */
+router.post("/:id/pricings", authenticate, requireHost, createListingPricing);
+
+/** PATCH /api/v1/listings/:id/pricings/:pricingId  — host only */
+router.patch("/:id/pricings/:pricingId", authenticate, requireHost, updateListingPricing);
+
+/** DELETE /api/v1/listings/:id/pricings/:pricingId  — host only */
+router.delete("/:id/pricings/:pricingId", authenticate, requireHost, deleteListingPricing);
+
+/**
+ * @swagger
+ * /api/v1/listings/admin/pending:
+ *   get:
+ *     summary: Get all listings pending admin approval
+ *     tags: [Admin - Listings]
+ *     security:
+ *       - bearerAuth: []
+ *     parameters:
+ *       - in: query
+ *         name: page
+ *         schema:
+ *           type: integer
+ *           default: 1
+ *       - in: query
+ *         name: limit
+ *         schema:
+ *           type: integer
+ *           default: 20
+ *     responses:
+ *       200:
+ *         description: Paginated list of pending listings with stats
+ *       401:
+ *         description: Not authenticated
+ *       403:
+ *         description: Admin access required
+ */
+router.get("/admin/pending", authenticate, requireAdmin, getPendingListings);
+
+/**
+ * @swagger
+ * /api/v1/listings/{id}/approve:
+ *   patch:
+ *     summary: Approve a listing
+ *     tags: [Admin - Listings]
+ *     security:
+ *       - bearerAuth: []
+ *     parameters:
+ *       - in: path
+ *         name: id
+ *         required: true
+ *         schema:
+ *           type: string
+ *     responses:
+ *       200:
+ *         description: Listing approved, host notified via email
+ *       400:
+ *         description: Listing already approved
+ *       404:
+ *         description: Listing not found
+ */
+router.patch("/admin/:id/approve", authenticate, requireAdmin, approveListing);
+
+/**
+ * @swagger
+ * /api/v1/listings/{id}/reject:
+ *   patch:
+ *     summary: Reject a listing with a reason
+ *     tags: [Admin - Listings]
+ *     security:
+ *       - bearerAuth: []
+ *     parameters:
+ *       - in: path
+ *         name: id
+ *         required: true
+ *         schema:
+ *           type: string
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             required:
+ *               - reason
+ *             properties:
+ *               reason:
+ *                 type: string
+ *                 example: "Photos do not meet quality standards. Please upload clear, high-resolution images."
+ *     responses:
+ *       200:
+ *         description: Listing rejected, host notified via email
+ *       400:
+ *         description: Rejection reason is required
+ *       404:
+ *         description: Listing not found
+ */
+router.patch("/admin/:id/reject", authenticate, requireAdmin, rejectListing);
+
+
 
 export default router;

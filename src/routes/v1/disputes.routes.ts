@@ -1,6 +1,7 @@
 import { Router } from "express";
 import {
   getAllDisputes,
+  getMyDisputes,
   getDisputeById,
   createDispute,
   updateDisputeStatus,
@@ -13,10 +14,13 @@ const router = Router();
 // GET /api/v1/disputes — admin: list all disputes with pagination & filters
 router.get("/", authenticate, requireAdmin, getAllDisputes);
 
-// GET /api/v1/disputes/:id — admin: get one dispute
-router.get("/:id", authenticate, requireAdmin, getDisputeById);
+// GET /api/v1/disputes/me — authenticated user: list their own disputes
+router.get("/me", authenticate, getMyDisputes);
 
-// POST /api/v1/disputes — authenticated user: file a dispute
+// GET /api/v1/disputes/:id — admin or involved user: get one dispute
+router.get("/:id", authenticate, getDisputeById);
+
+// POST /api/v1/disputes — authenticated user: file a dispute (guest OR host)
 router.post("/", authenticate, createDispute);
 
 // PATCH /api/v1/disputes/:id/status — admin: update status & resolution

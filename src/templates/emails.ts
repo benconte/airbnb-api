@@ -64,8 +64,8 @@ export const bookingConfirmationEmail = (
   totalPrice: number
 ): string =>
   baseTemplate(`
-    <h2>Your Booking is Confirmed! ✅</h2>
-    <p>Hi <strong>${guestName}</strong>, your reservation has been confirmed. Here are your booking details:</p>
+    <h2>Booking Request Received! ⏳</h2>
+    <p>Hi <strong>${guestName}</strong>, your booking request has been submitted. Here are your details — you'll receive another email once the host confirms:</p>
     <div class="detail-box">
       <p><strong>Property:</strong> ${listingTitle}</p>
       <p><strong>Location:</strong> ${location}</p>
@@ -73,24 +73,26 @@ export const bookingConfirmationEmail = (
       <p><strong>Check-out:</strong> ${checkOut}</p>
       <p><strong>Total Price:</strong> $${totalPrice.toFixed(2)}</p>
     </div>
-    <p><strong>Cancellation Policy:</strong> Free cancellation is available up to 48 hours before check-in. After that, the booking is non-refundable.</p>
-    <p>We hope you have an amazing stay!</p>
+    <p><strong>Status:</strong> <span style="color:#f0a500;font-weight:600;">⏳ Pending Host Approval</span></p>
+    <p>We'll notify you by email the moment the host accepts or declines your request. In the meantime you can view your trip in the <a href="#">Trips</a> section of your account.</p>
     <p>Warm regards,<br/><strong>The Airbnb Team</strong></p>
   `);
 
-export const bookingCancellationEmail = (
+export const bookingCancellationWithReasonEmail = (
   guestName: string,
   listingTitle: string,
   checkIn: string,
-  checkOut: string
+  checkOut: string,
+  reason?: string
 ): string =>
   baseTemplate(`
-    <h2>Booking Cancelled</h2>
+    <h2>Booking Cancelled ❌</h2>
     <p>Hi <strong>${guestName}</strong>, your booking has been cancelled. Here are the details of the cancelled reservation:</p>
     <div class="detail-box">
       <p><strong>Property:</strong> ${listingTitle}</p>
       <p><strong>Check-in:</strong> ${checkIn}</p>
       <p><strong>Check-out:</strong> ${checkOut}</p>
+      ${reason ? `<p><strong>Reason:</strong> ${reason}</p>` : ''}
     </div>
     <p>We're sorry to see this booking go! There are plenty of other great places available — we'd love to help you find your next stay.</p>
     <a href="#" class="btn">Find Another Listing</a>
@@ -108,3 +110,35 @@ export const passwordResetEmail = (name: string, resetLink: string): string =>
     <p style="word-break: break-all; color: ${BRAND_COLOR}; font-size: 13px;">${resetLink}</p>
     <p style="color: #9b9b9b; font-size: 13px; margin-top: 24px;">If you did not request this, you can safely ignore this email. Your password will not be changed.</p>
   `);
+
+
+export const listingApprovedEmail = (hostName: string, listingTitle: string): string =>
+  baseTemplate(`
+    <h2>Your listing has been approved! 🎉</h2>
+    <p>Hi <strong>${hostName}</strong>,</p>
+    <p>Great news — your listing <strong>"${listingTitle}"</strong> has been reviewed and approved by our team. It is now live on the platform and visible to guests.</p>
+    <p>Guests can start discovering and booking your property right away!</p>
+    <a href="#" class="btn">View Your Listing</a>
+    <p style="margin-top:24px;">Thank you for hosting on Airbnb. We're excited to have your property on our platform!</p>
+    <p>Warm regards,<br/><strong>The Airbnb Team</strong></p>
+  `);
+
+export const listingRejectedEmail = (
+  hostName: string,
+  listingTitle: string,
+  reason: string
+): string =>
+  baseTemplate(`
+    <h2>Update on your listing submission</h2>
+    <p>Hi <strong>${hostName}</strong>,</p>
+    <p>Thank you for submitting <strong>"${listingTitle}"</strong> for review. Unfortunately, our team was unable to approve it at this time.</p>
+    <div class="reason-box">
+      <strong>Reason for rejection:</strong><br/>
+      ${reason}
+    </div>
+    <p>You're welcome to update your listing to address the feedback above and resubmit it for review.</p>
+    <a href="#" class="btn">Edit Your Listing</a>
+    <p style="margin-top:24px;">If you have any questions or believe this decision was made in error, please reach out to our support team.</p>
+    <p>Regards,<br/><strong>The Airbnb Team</strong></p>
+  `);
+

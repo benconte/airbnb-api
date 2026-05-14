@@ -54,15 +54,15 @@ export const register = async (req: Request, res: Response): Promise<void> => {
     const { password: _, ...userWithoutPassword } = user;
     res.status(201).json(userWithoutPassword);
 
-    // try {
-    //   await sendEmail(
-    //     user.email,
-    //     "Welcome to Airbnb!",
-    //     welcomeEmail(user.name, user.role)
-    //   );
-    // } catch (emailErr) {
-    //   console.error("[Email] Failed to send welcome email:", emailErr);
-    // }
+    try {
+      await sendEmail(
+        user.email,
+        "Welcome to Airbnb!",
+        welcomeEmail(user.name, user.role)
+      );
+    } catch (emailErr) {
+      console.error("[Email] Failed to send welcome email:", emailErr);
+    }
   } catch (error) {
     console.error("Registration error:", error);
     res.status(500).json({ message: "Something went wrong" });

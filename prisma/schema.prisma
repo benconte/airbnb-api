@@ -45,6 +45,13 @@ enum DisputeReason {
   OTHER
 }
 
+enum PricingBadge {
+  NEW
+  RECOMMENDED
+  POPULAR
+  BEST_VALUE
+}
+
 model User {
   id               String    @id @default(uuid())
   name             String
@@ -60,12 +67,14 @@ model User {
   updatedAt        DateTime  @updatedAt
   resetToken       String?
   resetTokenExpiry DateTime?
+  isBlocked        Boolean   @default(false)
+  isEmailVerified  Boolean   @default(false)
 
-  listings   Listing[]
-  bookings   Booking[]
-  reviews    Review[]
-  wishlists  Listing[]  @relation("UserWishlists")
-  disputes   Dispute[]  @relation("DisputeReporter")
+  listings  Listing[]
+  bookings  Booking[]
+  reviews   Review[]
+  wishlists Listing[] @relation("UserWishlists")
+  disputes  Dispute[] @relation("DisputeReporter")
 
   @@index([name])
   @@index([role])
@@ -83,13 +92,15 @@ model Listing {
   rating        Float?
   createdAt     DateTime    @default(now())
   updatedAt     DateTime    @updatedAt
+  isApproved    Boolean     @default(false)
 
-  host     User           @relation(fields: [hostId], references: [id], onDelete: Cascade)
-  hostId   String
-  bookings Booking[]
-  photos   ListingPhoto[]
-  reviews  Review[]
-  wishlistedBy User[] @relation("UserWishlists")
+  host         User             @relation(fields: [hostId], references: [id], onDelete: Cascade)
+  hostId       String
+  bookings     Booking[]
+  photos       ListingPhoto[]
+  reviews      Review[]
+  pricings     ListingPricing[]
+  wishlistedBy User[]           @relation("UserWishlists")
 
   // Indexes for frequently filtered fields
   @@index([location])
@@ -107,13 +118,35 @@ model ListingPhoto {
   listingId String
 }
 
+/// Represents a named room / package / rate tier for a listing.
+/// e.g. "Deluxe King Room", "Garden Suite", "Executive Penthouse"
+model ListingPricing {
+  id          String        @id @default(uuid())
+  name        String
+  description String?
+  tags        String[] // e.g. ["Sea View", "King Bed", "Ensuite"]
+  price       Float // per-night price for this tier
+  badge       PricingBadge?
+  sortOrder   Int           @default(0)
+  isActive    Boolean       @default(true)
+  createdAt   DateTime      @default(now())
+  updatedAt   DateTime      @updatedAt
+
+  listing   Listing @relation(fields: [listingId], references: [id], onDelete: Cascade)
+  listingId String
+
+  @@index([listingId])
+  @@index([sortOrder])
+}
+
 model Booking {
-  id         String        @id @default(uuid())
-  checkIn    DateTime
-  checkOut   DateTime
-  totalPrice Float
-  status     BookingStatus @default(PENDING)
-  createdAt  DateTime      @default(now())
+  id                 String        @id @default(uuid())
+  checkIn            DateTime
+  checkOut           DateTime
+  totalPrice         Float
+  status             BookingStatus @default(PENDING)
+  cancellationReason String? // Reason provided when cancelling
+  createdAt          DateTime      @default(now())
 
   guest     User      @relation(fields: [guestId], references: [id], onDelete: Cascade)
   guestId   String
@@ -149,15 +182,19 @@ model Dispute {
   reason      DisputeReason @default(OTHER)
   status      DisputeStatus @default(OPEN)
   resolution  String?
+  /// Who the dispute is filed AGAINST — "HOST" means a guest filed it about the host,
+  /// "GUEST" means a host filed it about the guest behaviour
+  againstRole Role          @default(HOST)
   createdAt   DateTime      @default(now())
   updatedAt   DateTime      @updatedAt
 
-  reporter    User    @relation("DisputeReporter", fields: [reporterId], references: [id], onDelete: Cascade)
-  reporterId  String
-  booking     Booking @relation(fields: [bookingId], references: [id], onDelete: Cascade)
-  bookingId   String
+  reporter   User    @relation("DisputeReporter", fields: [reporterId], references: [id], onDelete: Cascade)
+  reporterId String
+  booking    Booking @relation(fields: [bookingId], references: [id], onDelete: Cascade)
+  bookingId  String
 
   @@index([reporterId])
   @@index([bookingId])
   @@index([status])
+  @@index([againstRole])
 }

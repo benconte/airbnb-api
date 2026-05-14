@@ -93,7 +93,6 @@ export const getHostAnalytics = async (req: AuthRequest, res: Response): Promise
 
     const now = new Date();
     const startOfMonth = new Date(now.getFullYear(), now.getMonth(), 1);
-    const startOfYear = new Date(now.getFullYear(), 0, 1);
 
     const [
       totalListings,

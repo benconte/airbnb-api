@@ -3,15 +3,23 @@ import dotenv from 'dotenv';
 import bcrypt from 'bcrypt';
 import path from 'path';
 import { PrismaPg } from "@prisma/adapter-pg";
+import { Pool } from "pg";
 
 // Load .env file from the airbnb-api root directory
 dotenv.config({ path: path.resolve(__dirname, '../.env') });
 
-const adapter = new PrismaPg({
-  connectionString: process.env["DATABASE_URL"] as string,
-});
-const prisma = new PrismaClient({ adapter });
+const connectionString = process.env["DATABASE_URL"] ?? "";
 
+const pool = new Pool({
+  connectionString,
+  max: 10,
+  idleTimeoutMillis: 30000,
+  connectionTimeoutMillis: 10000,
+  ssl: { rejectUnauthorized: false }
+});
+
+const adapter = new PrismaPg(pool);
+const prisma = new PrismaClient({ adapter });
 const YELP_API_KEY = process.env.YELP_API_KEY;
 
 const delay = (ms: number) => new Promise(res => setTimeout(res, ms));
@@ -64,7 +72,7 @@ async function main() {
   for (const offset of offsets) {
     if (totalFetched >= target) break;
 
-    const url = `https://api.yelp.com/v3/businesses/search?term=hotel&categories=hotels&location=New+York&limit=50&offset=${offset}`;
+    const url = `https://api.yelp.com/v3/businesses/search?term=hotel&categories=hotels&location=Miami&limit=50&offset=${offset}`;
 
     console.log(`Fetching hotels (offset ${offset})...`);
     const response = await fetch(url, { headers: { Authorization: `Bearer ${YELP_API_KEY}` } });

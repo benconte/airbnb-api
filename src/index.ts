@@ -12,7 +12,8 @@ const app = express();
 const PORT = process.env["PORT"] ?? 3333;
 
 // Middleware
-app.use(cors({ origin: ["http://localhost:3000", "https://stayhavens.netlify.app/"] }))
+app.use(cors({ origin: "*" }))
+// app.use(cors({ origin: ["http://localhost:3000", "https://stayhavens.netlify.app/"] }))
 app.use(express.json());
 app.use(compression());
 app.set("trust proxy", 1);

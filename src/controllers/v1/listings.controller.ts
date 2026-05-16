@@ -5,6 +5,7 @@ import prisma from "../../config/prisma";
 import { getCache, setCache, clearCachePrefix } from "../../config/cache";
 import { sendEmail } from "../../config/email";
 import { listingApprovedEmail, listingRejectedEmail } from "../../templates/emails";
+import jwt from "jsonwebtoken";
 
 // ── Home page featured sections ──────────────────────────────────────────────
 
@@ -554,5 +555,60 @@ export const getPendingListings = async (req: AuthRequest, res: Response): Promi
     });
   } catch (err) {
     handleError(err, res, "getPendingListings");
+  }
+};
+
+// ── Listing View Tracking ─────────────────────────────────────────────────────
+
+
+/**
+ * POST /api/v1/listings/:id/view
+ * Fire-and-forget analytics event: records a listing view.
+ * No auth required — JWT is parsed opportunistically to capture userId.
+ */
+export const trackListingView = async (req: Request, res: Response): Promise<void> => {
+  try {
+    const { id: listingId } = req.params as { id: string };
+    const { sessionId, source } = req.body as { sessionId?: string; source?: string };
+
+    // Opportunistically resolve userId from bearer token (no error if missing)
+    let userId: string | undefined;
+    const authHeader = req.headers.authorization;
+    if (authHeader?.startsWith("Bearer ")) {
+      try {
+        const decoded = jwt.verify(
+          authHeader.slice(7),
+          process.env.JWT_SECRET ?? "secret"
+        ) as { userId?: string };
+        userId = decoded.userId;
+      } catch {
+        // token invalid / expired — treat as anonymous
+      }
+    }
+
+    // Check listing exists (silently skip if not)
+    const exists = await prisma.listing.findUnique({
+      where: { id: listingId },
+      select: { id: true },
+    });
+    if (!exists) {
+      res.status(204).end();
+      return;
+    }
+
+    await prisma.listingView.create({
+      data: {
+        listingId,
+        userId: userId ?? null,
+        sessionId: sessionId ?? null,
+        source: source ?? "app",
+      },
+    });
+
+    res.status(204).end();
+  } catch (err) {
+    // Non-critical — log and swallow
+    console.error("[trackListingView] Error:", err);
+    res.status(204).end();
   }
 };

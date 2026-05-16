@@ -9,7 +9,8 @@ import { generalLimiter, strictLimiter } from "./middlewares/rateLimiter";
 import v1Router from "./routes/v1/index.js";
 
 const app = express();
-const PORT = process.env["PORT"] ?? 3333;
+const PORT = Number(process.env["PORT"]) ?? 3333;
+const IP_ADDRESS = process.env["IP_ADDRESS"] ?? "[IP_ADDRESS]";
 
 // Middleware
 app.use(cors({ origin: "*" }))
@@ -55,8 +56,8 @@ app.use((err: Error, _req: Request, res: Response, _next: NextFunction) => {
 // Start server only after DB is connected
 const main = async (): Promise<void> => {
   await connectDB();
-  app.listen(PORT, () => {
-    console.log(`🚀 Server is running on http://localhost:${PORT}`);
+  app.listen(PORT, IP_ADDRESS, () => {
+    console.log(`🚀 Server is running on http://${IP_ADDRESS}:${PORT}`);
   });
 };
 

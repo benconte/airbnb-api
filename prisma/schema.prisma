@@ -101,12 +101,29 @@ model Listing {
   reviews      Review[]
   pricings     ListingPricing[]
   wishlistedBy User[]           @relation("UserWishlists")
+  views        ListingView[]
 
   // Indexes for frequently filtered fields
   @@index([location])
   @@index([pricePerNight])
   @@index([hostId])
   @@index([type])
+}
+
+/// Analytics: tracks each time a listing detail page is opened.
+model ListingView {
+  id        String   @id @default(uuid())
+  listingId String
+  userId    String?  // null for anonymous / unauthenticated
+  sessionId String?  // device or session identifier
+  source    String?  // "app", "web", "search"
+  createdAt DateTime @default(now())
+
+  listing Listing @relation(fields: [listingId], references: [id], onDelete: Cascade)
+
+  @@index([listingId])
+  @@index([userId])
+  @@index([createdAt])
 }
 
 model ListingPhoto {

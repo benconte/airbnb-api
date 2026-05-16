@@ -24,7 +24,7 @@ export const getHostListings = async (req: AuthRequest, res: Response): Promise<
         orderBy: { createdAt: "desc" },
         include: {
           photos: { select: { id: true, url: true } },
-          _count: { select: { bookings: true, reviews: true } },
+          _count: { select: { bookings: true, reviews: true, views: true } },
         },
       }),
       prisma.listing.count({ where: { hostId } }),
@@ -103,6 +103,7 @@ export const getHostAnalytics = async (req: AuthRequest, res: Response): Promise
       monthlyEarningsAgg,
       allTimeEarningsAgg,
       recentBookings,
+      totalViews,
     ] = await Promise.all([
       prisma.listing.count({ where: { hostId } }),
       prisma.booking.count({ where: { listing: { hostId } } }),
@@ -130,14 +131,15 @@ export const getHostAnalytics = async (req: AuthRequest, res: Response): Promise
           listing: { select: { title: true } },
         },
       }),
+      prisma.listingView.count({ where: { listing: { hostId } } }),
     ]);
 
-    // Build monthly earnings for the current year (last 12 months)
-    const monthlyData: { month: string; earnings: number; bookings: number }[] = [];
+    // Build monthly data for the current year
+    const monthlyData: { month: string; earnings: number; bookings: number; views: number }[] = [];
     for (let m = 0; m < 12; m++) {
       const start = new Date(now.getFullYear(), m, 1);
       const end = new Date(now.getFullYear(), m + 1, 0, 23, 59, 59);
-      const [earningsAgg, count] = await Promise.all([
+      const [earningsAgg, count, viewCount] = await Promise.all([
         prisma.booking.aggregate({
           where: {
             listing: { hostId },
@@ -147,18 +149,36 @@ export const getHostAnalytics = async (req: AuthRequest, res: Response): Promise
           _sum: { totalPrice: true },
         }),
         prisma.booking.count({
-          where: {
-            listing: { hostId },
-            createdAt: { gte: start, lte: end },
-          },
+          where: { listing: { hostId }, createdAt: { gte: start, lte: end } },
+        }),
+        prisma.listingView.count({
+          where: { listing: { hostId }, createdAt: { gte: start, lte: end } },
         }),
       ]);
       monthlyData.push({
         month: start.toLocaleString("default", { month: "short" }),
         earnings: earningsAgg._sum.totalPrice ?? 0,
         bookings: count,
+        views: viewCount,
       });
     }
+
+    // Per-listing view + booking counts
+    const listingsWithViews = await prisma.listing.findMany({
+      where: { hostId },
+      select: {
+        id: true,
+        title: true,
+        location: true,
+        pricePerNight: true,
+        rating: true,
+        isApproved: true,
+        _count: { select: { views: true, bookings: true } },
+        photos: { select: { url: true }, take: 1 },
+      },
+      orderBy: { createdAt: "desc" },
+      take: 10,
+    });
 
     res.json({
       totalListings,
@@ -166,14 +186,88 @@ export const getHostAnalytics = async (req: AuthRequest, res: Response): Promise
       confirmedBookings,
       pendingBookings,
       cancelledBookings,
+      totalViews,
       monthlyEarnings: monthlyEarningsAgg._sum.totalPrice ?? 0,
       allTimeEarnings: allTimeEarningsAgg._sum.totalPrice ?? 0,
       monthlyData,
       recentBookings,
+      listingsWithViews,
     });
   } catch (err) {
     handleError(err, res, "getHostAnalytics");
   }
+};
+
+/**
+ * Internal helper — builds rich AI context about a host.
+ * Called by the AI host-chat controller to ground LLM answers in real data.
+ */
+export const buildHostContextForAi = async (hostId: string) => {
+  const now = new Date();
+  const startOfMonth = new Date(now.getFullYear(), now.getMonth(), 1);
+  const lastMonth = new Date(now.getFullYear(), now.getMonth() - 1, 1);
+  const endOfLastMonth = new Date(now.getFullYear(), now.getMonth(), 0, 23, 59, 59);
+
+  const [
+    listings,
+    totalBookings,
+    confirmedBookings,
+    pendingBookings,
+    cancelledBookings,
+    currentMonthEarningsAgg,
+    lastMonthEarningsAgg,
+    totalViews,
+    thisMonthViews,
+    lastMonthViews,
+  ] = await Promise.all([
+    prisma.listing.findMany({
+      where: { hostId },
+      select: {
+        id: true,
+        title: true,
+        location: true,
+        type: true,
+        pricePerNight: true,
+        guests: true,
+        rating: true,
+        isApproved: true,
+        _count: { select: { views: true, bookings: true, reviews: true } },
+      },
+    }),
+    prisma.booking.count({ where: { listing: { hostId } } }),
+    prisma.booking.count({ where: { listing: { hostId }, status: "CONFIRMED" } }),
+    prisma.booking.count({ where: { listing: { hostId }, status: "PENDING" } }),
+    prisma.booking.count({ where: { listing: { hostId }, status: "CANCELLED" } }),
+    prisma.booking.aggregate({
+      where: { listing: { hostId }, status: "CONFIRMED", createdAt: { gte: startOfMonth } },
+      _sum: { totalPrice: true },
+    }),
+    prisma.booking.aggregate({
+      where: { listing: { hostId }, status: "CONFIRMED", createdAt: { gte: lastMonth, lte: endOfLastMonth } },
+      _sum: { totalPrice: true },
+    }),
+    prisma.listingView.count({ where: { listing: { hostId } } }),
+    prisma.listingView.count({ where: { listing: { hostId }, createdAt: { gte: startOfMonth } } }),
+    prisma.listingView.count({ where: { listing: { hostId }, createdAt: { gte: lastMonth, lte: endOfLastMonth } } }),
+  ]);
+
+  const currentEarnings = currentMonthEarningsAgg._sum.totalPrice ?? 0;
+  const prevEarnings = lastMonthEarningsAgg._sum.totalPrice ?? 0;
+
+  return {
+    listings,
+    totalBookings,
+    confirmedBookings,
+    pendingBookings,
+    cancelledBookings,
+    currentMonthEarnings: currentEarnings,
+    lastMonthEarnings: prevEarnings,
+    earningsChange: prevEarnings > 0 ? ((currentEarnings - prevEarnings) / prevEarnings) * 100 : null,
+    totalViews,
+    thisMonthViews,
+    lastMonthViews,
+    viewsChange: lastMonthViews > 0 ? ((thisMonthViews - lastMonthViews) / lastMonthViews) * 100 : null,
+  };
 };
 
 function handleError(err: unknown, res: Response, operation: string): void {

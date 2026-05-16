@@ -25,7 +25,7 @@ export const getAllBookings = async (req: Request, res: Response): Promise<void>
         orderBy: { createdAt: "desc" },
         include: {
           guest: { select: { id: true, name: true, email: true, avatar: true } },
-          listing: { select: { id: true, title: true, location: true } },
+          listing: { select: { id: true, title: true, location: true, type: true, photos: true } },
         },
       }),
       prisma.booking.count({ where }),
@@ -60,7 +60,7 @@ export const getUserBookings = async (req: Request, res: Response): Promise<void
         skip,
         take: limit,
         include: {
-          listing: { select: { title: true, location: true } },
+          listing: { select: { title: true, location: true, photos: true } },
         },
       }),
       prisma.booking.count({ where: { guestId: userId } }),

@@ -8,6 +8,9 @@ import { InMemoryChatMessageHistory } from "@langchain/core/chat_history";
 import { RunnableWithMessageHistory } from "@langchain/core/runnables";
 import llm from "../../config/ai.js";
 import prisma from "../../config/prisma.js";
+import { authenticate } from "../../middlewares/auth.middleware.js";
+import { buildHostContextForAi } from "./host.controller.js";
+
 
 /**
  * Prompt that extracts listing-search filters from a user query.
@@ -449,3 +452,139 @@ export async function chat(req: Request, res: Response): Promise<void> {
 
   res.json({ reply, sessionId, listings: shownListings });
 }
+
+// ─── Host AI Chat ──────────────────────────────────────────────────────────────
+
+
+// Store host chat sessions separately
+const hostSessionHistories = new Map<string, InMemoryChatMessageHistory>();
+
+function getHostSessionHistory(sessionId: string): InMemoryChatMessageHistory {
+  if (!hostSessionHistories.has(sessionId)) {
+    hostSessionHistories.set(sessionId, new InMemoryChatMessageHistory());
+  }
+  return hostSessionHistories.get(sessionId)!;
+}
+
+/**
+ * Detect if the user message is describing a property they want to list.
+ * Returns true when the message contains property descriptors.
+ */
+const listingCreationDetectPrompt = ChatPromptTemplate.fromTemplate(`
+You are a classifier. Determine if the following message from a property host is:
+(A) Describing a property they want to list on a rental platform (to create a new listing)
+(B) Asking an analytics/performance question about their existing listings
+(C) A general hosting question or something else
+
+User message: {message}
+
+Respond with ONLY one of these words: LISTING_CREATION, ANALYTICS, GENERAL
+No punctuation, no explanation.
+`);
+
+const classifyChain = listingCreationDetectPrompt.pipe(llm).pipe(new StringOutputParser());
+
+const HOST_SYSTEM_PROMPT = `You are HostBot, an expert AI assistant for property hosts on StayHub — a premium short-term rental platform.
+
+You help hosts with:
+1. **Performance analytics** — interpreting booking trends, occupancy rates, revenue, and view-to-booking conversion
+2. **Listing creation** — generating compelling titles, descriptions, amenity checklists, pricing recommendations, and photo guidance
+3. **Smart pricing** — recommending optimal nightly rates based on property type, location, guest capacity, and season
+4. **Dispute guidance** — helping hosts understand and respond to disputes filed against them
+5. **General hosting advice** — best practices, response time tips, guest communication strategies
+
+## Host's Current Data:
+{hostContext}
+
+## Behavior:
+- **Be data-driven**: When answering analytics questions, reference the host's actual numbers provided above
+- **Be specific**: Avoid generic advice. Tie recommendations to the host's actual listings and performance
+- **Listing proposals**: When a host describes a property they want to list, generate a COMPLETE proposal with:
+  - A catchy, SEO-friendly title
+  - A 3-paragraph engaging description
+  - A list of at least 8 suggested amenities relevant to the property type
+  - A suggested nightly price range (in USD) based on location and property type
+  - Photo tips (what to photograph and how)
+  - Any missing information you need to improve the listing
+  Format the proposal clearly with headers. After the proposal, ask if they'd like to adjust anything.
+- **Analytics**: When asked about performance drops or trends, analyze the data and give actionable explanations
+- **Use emojis sparingly** (1-2 max per message) to keep the tone professional yet friendly
+- **Be concise**: Give clear, actionable answers. Don't repeat yourself.`;
+
+const hostChatPrompt = ChatPromptTemplate.fromMessages([
+  ["system", HOST_SYSTEM_PROMPT],
+  ["placeholder", "{chat_history}"],
+  ["human", "{input}"],
+]);
+
+const hostChatChain = hostChatPrompt.pipe(llm);
+
+const hostChainWithHistory = new RunnableWithMessageHistory({
+  runnable: hostChatChain,
+  getMessageHistory: getHostSessionHistory,
+  inputMessagesKey: "input",
+  historyMessagesKey: "chat_history",
+});
+
+export async function hostChat(req: Request & { userId?: string }, res: Response): Promise<void> {
+  const { message, sessionId } = req.body;
+  const hostId = req.userId;
+
+  if (!message || !sessionId) {
+    res.status(400).json({ error: "message and sessionId are required" });
+    return;
+  }
+  if (!hostId) {
+    res.status(401).json({ error: "Not authenticated" });
+    return;
+  }
+
+  // Fetch real host data for grounding the AI
+  let hostContext = "No host data available.";
+  let hostData: Awaited<ReturnType<typeof buildHostContextForAi>> | null = null;
+  try {
+    hostData = await buildHostContextForAi(hostId);
+
+    const listingsStr = hostData.listings.length === 0
+      ? "No listings yet."
+      : hostData.listings.map((l) =>
+        `- "${l.title}" in ${l.location} (${l.type}): $${l.pricePerNight}/night, up to ${l.guests} guests${l.rating ? `, ⭐${l.rating}` : ""} | ${l._count.views} views, ${l._count.bookings} bookings, ${l._count.reviews} reviews${l.isApproved ? "" : " [PENDING APPROVAL]"}`
+      ).join("\n");
+
+    const earningsChangeStr = hostData.earningsChange !== null
+      ? `${hostData.earningsChange > 0 ? "+" : ""}${hostData.earningsChange.toFixed(1)}% vs last month`
+      : "First month of data";
+
+    const viewsChangeStr = hostData.viewsChange !== null
+      ? `${hostData.viewsChange > 0 ? "+" : ""}${hostData.viewsChange.toFixed(1)}% vs last month`
+      : "First month of data";
+
+    hostContext = `
+### Host Portfolio:
+${listingsStr}
+
+### Booking Summary:
+- Total bookings: ${hostData.totalBookings} (${hostData.confirmedBookings} confirmed, ${hostData.pendingBookings} pending, ${hostData.cancelledBookings} cancelled)
+- Cancellation rate: ${hostData.totalBookings > 0 ? ((hostData.cancelledBookings / hostData.totalBookings) * 100).toFixed(1) : 0}%
+
+### Earnings:
+- This month: $${hostData.currentMonthEarnings.toFixed(0)} (${earningsChangeStr})
+- Last month: $${hostData.lastMonthEarnings.toFixed(0)}
+
+### Listing Views (Discovery):
+- Total all-time views: ${hostData.totalViews}
+- This month: ${hostData.thisMonthViews} views (${viewsChangeStr})
+- Overall view-to-booking ratio: ${hostData.totalViews > 0 ? ((hostData.totalBookings / hostData.totalViews) * 100).toFixed(1) : 0}%
+    `.trim();
+  } catch (e) {
+    console.error("[hostChat] Failed to build host context:", e);
+  }
+
+  const reply = await hostChainWithHistory.invoke(
+    { input: message, hostContext },
+    { configurable: { sessionId: `host-${sessionId}` } }
+  );
+
+  res.json({ reply, sessionId });
+}
+

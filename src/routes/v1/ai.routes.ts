@@ -3,8 +3,9 @@ import {
   naturalLanguageSearch,
   generateListingDescription,
   chat,
+  hostChat,
 } from "../../controllers/v1/ai.controller.js";
-import { authenticate } from "../../middlewares/auth.middleware.js";
+import { authenticate, requireHost } from "../../middlewares/auth.middleware.js";
 
 const router = Router();
 
@@ -49,24 +50,19 @@ router.post("/search", naturalLanguageSearch);
  *             properties:
  *               title:
  *                 type: string
- *                 example: "Beachfront Villa"
  *               location:
  *                 type: string
- *                 example: "Miami, FL"
  *               type:
  *                 type: string
- *                 example: "VILLA"
+ *                 enum: [APARTMENT, HOUSE, VILLA, CABIN]
  *               guests:
  *                 type: integer
- *                 example: 6
  *               amenities:
  *                 type: array
  *                 items:
  *                   type: string
- *                 example: ["Pool", "WiFi", "BBQ"]
  *               price:
  *                 type: number
- *                 example: 250
  *     responses:
  *       200:
  *         description: Generated listing description
@@ -77,7 +73,7 @@ router.post("/generate-description", authenticate, generateListingDescription);
  * @swagger
  * /api/v1/ai/chat:
  *   post:
- *     summary: Chat with the Airbnb AI assistant
+ *     summary: Chat with the AI assistant (guest/general)
  *     tags: [AI]
  *     requestBody:
  *       required: true
@@ -89,14 +85,43 @@ router.post("/generate-description", authenticate, generateListingDescription);
  *             properties:
  *               message:
  *                 type: string
- *                 example: "What listings do you have in Miami?"
  *               sessionId:
  *                 type: string
- *                 example: "user-123-session-abc"
  *     responses:
  *       200:
  *         description: AI response
  */
 router.post("/chat", chat);
+
+/**
+ * @swagger
+ * /api/v1/ai/host-chat:
+ *   post:
+ *     summary: Host-specific AI — analytics, listing creation, smart pricing
+ *     tags: [AI]
+ *     security:
+ *       - bearerAuth: []
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             required: [message, sessionId]
+ *             properties:
+ *               message:
+ *                 type: string
+ *                 example: "I have a 2-bedroom apartment in Kigali near the convention center"
+ *               sessionId:
+ *                 type: string
+ *     responses:
+ *       200:
+ *         description: AI response grounded in host's real data
+ *       401:
+ *         description: Not authenticated
+ *       403:
+ *         description: Host role required
+ */
+router.post("/host-chat", authenticate, requireHost, hostChat);
 
 export default router;

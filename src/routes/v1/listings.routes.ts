@@ -10,6 +10,7 @@ import {
   getPendingListings,
   approveListing,
   rejectListing,
+  trackListingView,
 } from "../../controllers/v1/listings.controller";
 import { authenticate, requireAdmin, requireHost } from "../../middlewares/auth.middleware";
 import { getListingReviews, createReview } from "../../controllers/v1/reviews.controller";
@@ -590,6 +591,15 @@ router.patch("/:id/pricings/:pricingId", authenticate, requireHost, updateListin
 
 /** DELETE /api/v1/listings/:id/pricings/:pricingId  — host only */
 router.delete("/:id/pricings/:pricingId", authenticate, requireHost, deleteListingPricing);
+
+// ── Listing View Tracking ─────────────────────────────────────────────────────
+
+/**
+ * POST /api/v1/listings/:id/view
+ * Fire-and-forget: called whenever a guest/host opens the listing detail page.
+ * No auth required; userId is inferred from token if present.
+ */
+router.post("/:id/view", trackListingView);
 
 /**
  * @swagger

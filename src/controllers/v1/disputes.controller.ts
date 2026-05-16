@@ -52,17 +52,28 @@ export const getAllDisputes = async (req: Request, res: Response): Promise<void>
   }
 };
 
-// ── GET disputes for the authenticated user (as reporter) ─────────────────────
+// ── GET disputes for the authenticated user (as reporter OR involved party) ───
 export const getMyDisputes = async (req: AuthRequest, res: Response): Promise<void> => {
   try {
-    const reporterId = req.userId!;
+    const userId = req.userId!;
     const page = Math.max(1, parseInt((req.query.page as string) ?? "1", 10) || 1);
     const limit = Math.max(1, parseInt((req.query.limit as string) ?? "10", 10) || 10);
     const skip = (page - 1) * limit;
 
+    const where: Prisma.DisputeWhereInput = {
+      OR: [
+        // Disputes I filed
+        { reporterId: userId },
+        // Disputes filed against me as a host
+        { booking: { listing: { hostId: userId } } },
+        // Disputes filed against me as a guest
+        { booking: { guestId: userId } },
+      ],
+    };
+
     const [disputes, total] = await Promise.all([
       prisma.dispute.findMany({
-        where: { reporterId },
+        where,
         skip,
         take: limit,
         orderBy: { createdAt: "desc" },
@@ -73,9 +84,10 @@ export const getMyDisputes = async (req: AuthRequest, res: Response): Promise<vo
               guest: { select: { id: true, name: true, email: true } },
             },
           },
+          reporter: { select: { id: true, name: true, email: true, avatar: true, role: true } },
         },
       }),
-      prisma.dispute.count({ where: { reporterId } }),
+      prisma.dispute.count({ where }),
     ]);
 
     res.json({
@@ -281,3 +293,51 @@ function handleError(err: unknown, res: Response, operation: string): void {
   console.error(`[${operation}] Unexpected error:`, err);
   res.status(500).json({ message: "Something went wrong." });
 }
+
+
+// ── ESCALATE dispute to admin (reporter/guest only) ───────────────────────────
+export const escalateDispute = async (req: AuthRequest, res: Response): Promise<void> => {
+  try {
+    const { id } = req.params as { id: string };
+    const userId = req.userId!;
+
+    const dispute = await prisma.dispute.findUnique({
+      where: { id },
+    });
+
+    if (!dispute) {
+      res.status(404).json({ message: `Dispute with id ${id} not found.` });
+      return;
+    }
+
+    if (dispute.reporterId !== userId) {
+      res.status(403).json({ message: 'Only the reporter can escalate this dispute.' });
+      return;
+    }
+
+    if (dispute.status !== 'OPEN') {
+      res.status(400).json({
+        message: `Cannot escalate a dispute with status "${dispute.status}". Only OPEN disputes can be escalated.`,
+      });
+      return;
+    }
+
+    const updated = await prisma.dispute.update({
+      where: { id },
+      data: { status: 'UNDER_REVIEW' },
+      include: {
+        reporter: { select: { id: true, name: true, email: true, avatar: true, role: true } },
+        booking: {
+          include: {
+            listing: { select: { id: true, title: true, location: true } },
+            guest: { select: { id: true, name: true, email: true } },
+          },
+        },
+      },
+    });
+
+    res.json(updated);
+  } catch (err) {
+    handleError(err, res, 'escalateDispute');
+  }
+};

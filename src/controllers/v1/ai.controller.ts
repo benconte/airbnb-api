@@ -8,7 +8,7 @@ import { InMemoryChatMessageHistory } from "@langchain/core/chat_history";
 import { RunnableWithMessageHistory } from "@langchain/core/runnables";
 import llm from "../../config/ai.js";
 import prisma from "../../config/prisma.js";
-import { authenticate } from "../../middlewares/auth.middleware.js";
+// import { authenticate } from "../../middlewares/auth.middleware.js";
 import { buildHostContextForAi } from "./host.controller.js";
 
 
@@ -470,19 +470,19 @@ function getHostSessionHistory(sessionId: string): InMemoryChatMessageHistory {
  * Detect if the user message is describing a property they want to list.
  * Returns true when the message contains property descriptors.
  */
-const listingCreationDetectPrompt = ChatPromptTemplate.fromTemplate(`
-You are a classifier. Determine if the following message from a property host is:
-(A) Describing a property they want to list on a rental platform (to create a new listing)
-(B) Asking an analytics/performance question about their existing listings
-(C) A general hosting question or something else
+// const listingCreationDetectPrompt = ChatPromptTemplate.fromTemplate(`
+// You are a classifier. Determine if the following message from a property host is:
+// (A) Describing a property they want to list on a rental platform (to create a new listing)
+// (B) Asking an analytics/performance question about their existing listings
+// (C) A general hosting question or something else
 
-User message: {message}
+// User message: {message}
 
-Respond with ONLY one of these words: LISTING_CREATION, ANALYTICS, GENERAL
-No punctuation, no explanation.
-`);
+// Respond with ONLY one of these words: LISTING_CREATION, ANALYTICS, GENERAL
+// No punctuation, no explanation.
+// `);
 
-const classifyChain = listingCreationDetectPrompt.pipe(llm).pipe(new StringOutputParser());
+// const classifyChain = listingCreationDetectPrompt.pipe(llm).pipe(new StringOutputParser());
 
 const HOST_SYSTEM_PROMPT = `You are HostBot, an expert AI assistant for property hosts on StayHub — a premium short-term rental platform.
 

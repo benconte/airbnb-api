@@ -98,11 +98,41 @@ export const login = async (req: Request, res: Response): Promise<void> => {
       { expiresIn: process.env.JWT_EXPIRES_IN as any }
     );
 
+    const refreshToken = jwt.sign(
+      { userId: user.id },
+      (process.env.JWT_SECRET as string) + '_refresh',
+      { expiresIn: '7d' }
+    );
+
     const { password: _, ...userWithoutPassword } = user;
 
-    res.status(200).json({ token, user: userWithoutPassword });
+    res.status(200).json({ token, refreshToken, user: userWithoutPassword });
   } catch (error) {
     res.status(500).json({ message: "Something went wrong" });
+  }
+};
+
+export const refresh = async (req: Request, res: Response): Promise<void> => {
+  try {
+    const { refreshToken } = req.body;
+    if (!refreshToken) {
+      res.status(401).json({ message: "Refresh token required" });
+      return;
+    }
+    const payload = jwt.verify(refreshToken, (process.env.JWT_SECRET as string) + '_refresh') as any;
+    const user = await prisma.user.findUnique({ where: { id: payload.userId } });
+    if (!user) {
+      res.status(401).json({ message: "Invalid refresh token" });
+      return;
+    }
+    const accessToken = jwt.sign(
+      { userId: user.id, role: user.role },
+      process.env.JWT_SECRET as string,
+      { expiresIn: process.env.JWT_EXPIRES_IN as any }
+    );
+    res.status(200).json({ accessToken });
+  } catch (error) {
+    res.status(401).json({ message: "Invalid refresh token" });
   }
 };
 

@@ -60,7 +60,23 @@ export const getUserBookings = async (req: Request, res: Response): Promise<void
         skip,
         take: limit,
         include: {
-          listing: { select: { title: true, location: true, photos: true } },
+          listing: {
+            select: {
+              id: true,
+              title: true,
+              location: true,
+              type: true,
+              photos: true,
+              host: {
+                select: {
+                  id: true,
+                  name: true,
+                  email: true,
+                  avatar: true,
+                },
+              },
+            },
+          },
         },
       }),
       prisma.booking.count({ where: { guestId: userId } }),
@@ -99,15 +115,16 @@ export const getBookingById = async (req: Request, res: Response): Promise<void>
 
 export const createBooking = async (req: AuthRequest, res: Response): Promise<void> => {
   try {
-    const { listingId, checkIn, checkOut } = req.body as {
+    const { listingId, checkIn, checkOut, room } = req.body as {
       listingId?: string;
       checkIn?: string;
       checkOut?: string;
+      room?: string;
     };
 
-    if (!listingId || !checkIn || !checkOut) {
+    if (!listingId || !checkIn || !checkOut || !room) {
       res.status(400).json({
-        message: "Missing required fields: listingId, checkIn, checkOut.",
+        message: "Missing required fields: listingId, checkIn, checkOut, room.",
       });
       return;
     }
@@ -121,6 +138,12 @@ export const createBooking = async (req: AuthRequest, res: Response): Promise<vo
     const listing = await prisma.listing.findFirst({ where: { id: listingId } });
     if (!listing) {
       res.status(404).json({ message: `Listing with id ${listingId} not found.` });
+      return;
+    }
+
+    // Prevent users from booking their own listing
+    if (listing.hostId === guestId) {
+      res.status(403).json({ message: "You cannot book your own listing." });
       return;
     }
 

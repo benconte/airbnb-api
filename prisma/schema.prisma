@@ -12,6 +12,7 @@ datasource db {
 
 enum Role {
   ADMIN
+  SUPER_ADMIN
   HOST
   GUEST
 }
@@ -70,11 +71,12 @@ model User {
   isBlocked        Boolean   @default(false)
   isEmailVerified  Boolean   @default(false)
 
-  listings  Listing[]
-  bookings  Booking[]
-  reviews   Review[]
-  wishlists Listing[] @relation("UserWishlists")
-  disputes  Dispute[] @relation("DisputeReporter")
+  listings         Listing[]
+  bookings         Booking[]
+  reviews          Review[]
+  wishlists        Listing[]        @relation("UserWishlists")
+  disputes         Dispute[]        @relation("DisputeReporter")
+  disputeMessages  DisputeMessage[] @relation("DisputeMessageSender")
 
   @@index([name])
   @@index([role])
@@ -170,6 +172,7 @@ model Booking {
   listing   Listing   @relation(fields: [listingId], references: [id], onDelete: Cascade)
   listingId String
   guests    Int       @default(1)
+  room      String?
   disputes  Dispute[]
 
   @@index([guestId])
@@ -210,8 +213,31 @@ model Dispute {
   booking    Booking @relation(fields: [bookingId], references: [id], onDelete: Cascade)
   bookingId  String
 
+  messages   DisputeMessage[]
+
   @@index([reporterId])
   @@index([bookingId])
   @@index([status])
   @@index([againstRole])
+}
+
+/// A single message in the dispute thread.
+/// Supports text + image attachments (Cloudinary URLs stored as JSON array in imageUrls).
+model DisputeMessage {
+  id         String   @id @default(uuid())
+  body       String?  // Text body — may be null if message is images-only
+  imageUrls  String[] // Cloudinary secure_url values (up to 5 images per message)
+  publicIds  String[] // Cloudinary public_ids for deletion
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
+
+  dispute   Dispute @relation(fields: [disputeId], references: [id], onDelete: Cascade)
+  disputeId String
+
+  sender   User   @relation("DisputeMessageSender", fields: [senderId], references: [id], onDelete: Cascade)
+  senderId String
+
+  @@index([disputeId])
+  @@index([senderId])
+  @@index([createdAt])
 }

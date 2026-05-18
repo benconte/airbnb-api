@@ -6,7 +6,7 @@ import {
   deleteBooking,
   updateBookingStatus,
 } from "../../controllers/v1/bookings.controller";
-import { authenticate, requireGuest } from "../../middlewares/auth.middleware";
+import { authenticate } from "../../middlewares/auth.middleware";
 
 const router = Router();
 
@@ -186,7 +186,7 @@ router.get("/:id", getBookingById);
  *             schema:
  *               $ref: '#/components/schemas/ErrorResponse'
  */
-router.post("/", authenticate, requireGuest, createBooking);
+router.post("/", authenticate, createBooking);
 
 /**
  * @swagger

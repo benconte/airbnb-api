@@ -28,7 +28,7 @@ export const authenticate = (req: AuthRequest, res: Response, next: NextFunction
 };
 
 export const requireHost = (req: AuthRequest, res: Response, next: NextFunction): void => {
-  if (req.role === "HOST" || req.role === "ADMIN") {
+  if (req.role === "HOST" || req.role === "ADMIN" || req.role === "SUPER_ADMIN") {
     next();
   } else {
     res.status(403).json({ message: "Forbidden: Host access required" });
@@ -37,7 +37,7 @@ export const requireHost = (req: AuthRequest, res: Response, next: NextFunction)
 };
 
 export const requireGuest = (req: AuthRequest, res: Response, next: NextFunction): void => {
-  if (req.role === "GUEST" || req.role === "ADMIN") {
+  if (req.role === "GUEST" || req.role === "ADMIN" || req.role === "SUPER_ADMIN") {
     next();
   } else {
     res.status(403).json({ message: "Forbidden: Guest access required" });
@@ -46,10 +46,20 @@ export const requireGuest = (req: AuthRequest, res: Response, next: NextFunction
 };
 
 export const requireAdmin = (req: AuthRequest, res: Response, next: NextFunction): void => {
-  if (req.role === "ADMIN") {
+  if (req.role === "ADMIN" || req.role === "SUPER_ADMIN") {
     next();
   } else {
     res.status(403).json({ message: "Forbidden: Admin access required" });
+    return;
+  }
+};
+
+
+export const requireSuperAdmin = (req: AuthRequest, res: Response, next: NextFunction): void => {
+  if (req.role === "SUPER_ADMIN") {
+    next();
+  } else {
+    res.status(403).json({ message: "Forbidden: Super Admin access required" });
     return;
   }
 };

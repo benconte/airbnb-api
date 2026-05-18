@@ -111,7 +111,13 @@ export const getDisputeById = async (req: Request, res: Response): Promise<void>
         booking: {
           include: {
             listing: { select: { id: true, title: true, location: true } },
-            guest: { select: { id: true, name: true, email: true } },
+            guest: { select: { id: true, name: true, email: true, avatar: true } },
+          },
+        },
+        messages: {
+          orderBy: { createdAt: "asc" },
+          include: {
+            sender: { select: { id: true, name: true, email: true, avatar: true, role: true } },
           },
         },
       },
@@ -170,7 +176,7 @@ export const createDispute = async (req: AuthRequest, res: Response): Promise<vo
     // Hosts can file disputes about bookings on their listings (against the guest)
     const isGuest = booking.guestId === reporterId;
     const isHost = booking.listing.hostId === reporterId;
-    const isAdmin = req.role === "ADMIN";
+    const isAdmin = req.role === "ADMIN" || req.role === "SUPER_ADMIN";
 
     if (!isGuest && !isHost && !isAdmin) {
       res.status(403).json({

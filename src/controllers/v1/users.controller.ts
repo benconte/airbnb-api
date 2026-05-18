@@ -202,7 +202,28 @@ export const getUserBookings = async (req: Request, res: Response): Promise<void
         where: { guestId },
         skip,
         take: limit,
-        include: { listing: { select: { title: true, location: true } } },
+        orderBy: { createdAt: 'desc' },
+        include: {
+          listing: {
+            select: {
+              id: true,
+              title: true,
+              location: true,
+              type: true,
+              pricePerNight: true,
+              photos: {
+                select: { id: true, url: true },
+              },
+              host: {
+                select: {
+                  id: true,
+                  name: true,
+                  avatar: true,
+                },
+              },
+            },
+          },
+        },
       }),
       prisma.booking.count({ where: { guestId } })
     ]);

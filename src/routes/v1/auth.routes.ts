@@ -6,6 +6,7 @@ import {
   changePassword,
   forgotPassword,
   resetPassword,
+  refresh,
 } from "../../controllers/v1/auth.controller";
 import { authenticate } from "../../middlewares/auth.middleware";
 
@@ -173,6 +174,31 @@ router.post("/register", register);
  *               $ref: '#/components/schemas/ErrorResponse'
  */
 router.post("/login", login);
+
+/**
+ * @swagger
+ * /api/v1/auth/refresh:
+ *   post:
+ *     summary: Refresh access token
+ *     tags: [Auth]
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             required:
+ *               - refreshToken
+ *             properties:
+ *               refreshToken:
+ *                 type: string
+ *     responses:
+ *       200:
+ *         description: New access token
+ *       401:
+ *         description: Invalid refresh token
+ */
+router.post("/refresh", refresh);
 
 /**
  * @swagger

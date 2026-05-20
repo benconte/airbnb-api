@@ -77,9 +77,26 @@ model User {
   wishlists        Listing[]        @relation("UserWishlists")
   disputes         Dispute[]        @relation("DisputeReporter")
   disputeMessages  DisputeMessage[] @relation("DisputeMessageSender")
+  pushTokens       PushToken[]
 
   @@index([name])
   @@index([role])
+}
+
+/// Expo push token stored per device per user
+model PushToken {
+  id         String   @id @default(uuid())
+  token      String   @unique
+  platform   String   // "ios" | "android"
+  deviceName String?
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
+
+  user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+  userId String
+
+  @@index([userId])
+  @@index([token])
 }
 
 model Listing {

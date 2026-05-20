@@ -6,6 +6,7 @@ import { getCache, setCache, clearCachePrefix } from "../../config/cache";
 import { sendEmail } from "../../config/email";
 import { listingApprovedEmail, listingRejectedEmail } from "../../templates/emails";
 import jwt from "jsonwebtoken";
+import { notifyHostListingApproved, notifyHostListingRejected } from "../../config/notifications";
 
 // ── Home page featured sections ──────────────────────────────────────────────
 
@@ -456,6 +457,13 @@ export const approveListing = async (req: AuthRequest, res: Response): Promise<v
       listingApprovedEmail(listing.host.name, listing.title)
     ).catch((err) => console.error("[approveListing] Email failed:", err));
 
+    // Push: notify host listing was approved
+    notifyHostListingApproved({
+      hostId: listing.host.id,
+      listingId: id,
+      listingTitle: listing.title,
+    }).catch((err) => console.error("[Push] notifyHostListingApproved failed:", err));
+
     res.json({ message: "Listing approved successfully.", listing: updated });
   } catch (err) {
     handleError(err, res, "approveListing");
@@ -503,6 +511,13 @@ export const rejectListing = async (req: AuthRequest, res: Response): Promise<vo
       `Update on your listing "${listing.title}"`,
       listingRejectedEmail(listing.host.name, listing.title, reason.trim())
     ).catch((err) => console.error("[rejectListing] Email failed:", err));
+
+    // Push: notify host listing was rejected
+    notifyHostListingRejected({
+      hostId: listing.host.id,
+      listingId: id,
+      listingTitle: listing.title,
+    }).catch((err) => console.error("[Push] notifyHostListingRejected failed:", err));
 
     res.json({ message: "Listing rejected. Host has been notified.", listing: updated });
   } catch (err) {

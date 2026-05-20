@@ -4,6 +4,13 @@ import { Prisma, BookingStatus } from "../../../generated/prisma/client";
 import prisma from "../../config/prisma";
 import { sendEmail } from "../../config/email";
 import { bookingConfirmationEmail, bookingCancellationWithReasonEmail } from "../../templates/emails";
+import {
+  notifyGuestBookingCreated,
+  notifyHostNewBooking,
+  notifyGuestBookingCancelled,
+  notifyHostBookingCancelled,
+  notifyGuestBookingConfirmed,
+} from "../../config/notifications";
 
 export const getAllBookings = async (req: Request, res: Response): Promise<void> => {
   try {
@@ -201,7 +208,7 @@ export const createBooking = async (req: AuthRequest, res: Response): Promise<vo
       },
     });
 
-    // Send response first, then fire email
+    // Send response first, then fire email + push notifications
     res.status(201).json(newBooking);
 
     try {
@@ -223,6 +230,25 @@ export const createBooking = async (req: AuthRequest, res: Response): Promise<vo
     } catch (emailErr) {
       console.error("[Email] Failed to send booking confirmation email:", emailErr);
     }
+
+    // Push: notify guest their request was received
+    notifyGuestBookingCreated({
+      guestId,
+      bookingId: newBooking.id,
+      listingTitle: listing.title,
+      checkIn: checkInDate.toDateString(),
+      checkOut: checkOutDate.toDateString(),
+    }).catch((err) => console.error("[Push] notifyGuestBookingCreated failed:", err));
+
+    // Push: notify host of a new booking request
+    notifyHostNewBooking({
+      hostId: listing.hostId,
+      bookingId: newBooking.id,
+      guestName: newBooking.guest.name,
+      listingTitle: listing.title,
+      checkIn: checkInDate.toDateString(),
+      checkOut: checkOutDate.toDateString(),
+    }).catch((err) => console.error("[Push] notifyHostNewBooking failed:", err));
   } catch (err) {
     handleError(err, res, "createBooking");
   }
@@ -265,7 +291,7 @@ export const deleteBooking = async (req: AuthRequest, res: Response): Promise<vo
       },
     });
 
-    // Send response first, then fire email
+    // Send response first, then fire email + push notifications
     res.json({ message: "Booking cancelled successfully.", booking: deleted });
 
     try {
@@ -282,6 +308,29 @@ export const deleteBooking = async (req: AuthRequest, res: Response): Promise<vo
       );
     } catch (emailErr) {
       console.error("[Email] Failed to send booking cancellation email:", emailErr);
+    }
+
+    // Push: notify guest their booking was cancelled
+    notifyGuestBookingCancelled({
+      guestId: existing.guestId,
+      bookingId: id,
+      listingTitle: existing.listing.title,
+    }).catch((err) => console.error("[Push] notifyGuestBookingCancelled failed:", err));
+
+    // Push: notify host if a guest cancelled
+    if (req.userId === existing.guestId) {
+      const listing = await prisma.listing.findUnique({
+        where: { id: existing.listingId },
+        select: { hostId: true },
+      });
+      if (listing) {
+        notifyHostBookingCancelled({
+          hostId: listing.hostId,
+          bookingId: id,
+          guestName: existing.guest.name,
+          listingTitle: existing.listing.title,
+        }).catch((err) => console.error("[Push] notifyHostBookingCancelled failed:", err));
+      }
     }
   } catch (err) {
     handleError(err, res, "deleteBooking");
@@ -300,7 +349,13 @@ export const updateBookingStatus = async (req: Request, res: Response): Promise<
       return;
     }
 
-    const existing = await prisma.booking.findFirst({ where: { id } });
+    const existing = await prisma.booking.findFirst({
+      where: { id },
+      include: {
+        guest: { select: { id: true } },
+        listing: { select: { id: true, title: true, hostId: true } },
+      },
+    });
     if (!existing) {
       res.status(404).json({ message: `Booking with id ${id} not found.` });
       return;
@@ -312,6 +367,24 @@ export const updateBookingStatus = async (req: Request, res: Response): Promise<
     });
 
     res.json(updated);
+
+    // Push on status change to CONFIRMED — notify guest
+    if (status === "CONFIRMED") {
+      notifyGuestBookingConfirmed({
+        guestId: existing.guest.id,
+        bookingId: id,
+        listingTitle: existing.listing.title,
+        checkIn: existing.checkIn.toDateString(),
+        checkOut: existing.checkOut.toDateString(),
+      }).catch((err) => console.error("[Push] notifyGuestBookingConfirmed failed:", err));
+    }
+    if (status === "CANCELLED") {
+      notifyGuestBookingCancelled({
+        guestId: existing.guest.id,
+        bookingId: id,
+        listingTitle: existing.listing.title,
+      }).catch((err) => console.error("[Push] notifyGuestBookingCancelled failed:", err));
+    }
   } catch (err) {
     handleError(err, res, "updateBookingStatus");
   }

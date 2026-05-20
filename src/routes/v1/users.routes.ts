@@ -11,6 +11,13 @@ import {
   toggleUserWishlist,
 } from "../../controllers/v1/users.controller";
 import { getUsersStats } from "../../controllers/v1/stats.controller";
+import {
+  registerPushToken,
+  refreshPushToken,
+  deletePushToken,
+  listPushTokens,
+} from "../../controllers/v1/push-tokens.controller";
+import { authenticate } from "../../middlewares/auth.middleware";
 
 const router = Router();
 
@@ -336,5 +343,12 @@ router.post("/:id/wishlists/:listingId", toggleUserWishlist);
  *               $ref: '#/components/schemas/ErrorResponse'
  */
 router.get("/:id/bookings", getUserBookings);
+
+// ── Push Token routes ─────────────────────────────────────────────────────────
+// All push-token routes require authentication
+router.get("/push-token", authenticate, listPushTokens);
+router.post("/push-token", authenticate, registerPushToken);
+router.put("/push-token", authenticate, refreshPushToken);
+router.delete("/push-token", authenticate, deletePushToken);
 
 export default router;
